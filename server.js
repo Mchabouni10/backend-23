@@ -18,10 +18,12 @@ const port = process.env.PORT || 3001;
 const rawOrigins = process.env.ALLOWED_ORIGINS;
 const allowedOrigins = rawOrigins && rawOrigins.trim() !== ''
   ? rawOrigins.split(',').map(o => o.trim())
-  : [
-      'http://localhost:3000',               // local React dev
-      'https://backend-23-czrd.onrender.com' // self (in case you make internal calls)
-    ];
+ : [
+    'http://localhost:3000',
+    'https://rawdahcalculator.vercel.app',
+    'https://backend-23-czrd.onrender.com'
+  ];
+
 
 app.use(cors({
   origin: function (origin, callback) {
