@@ -6,17 +6,25 @@ const cors = require('cors');
 const port = process.env.PORT || 3001;
 const app = express();
 
-// CORS configuration - allow both local development and production
-const allowedOrigins = [
-  'http://localhost:3000',           // Local React development server
-  'https://your-frontend-domain.com' // Replace with your actual production domain
-];
+// CORS configuration - allow requests from any origin
+// For production, you can restrict this by setting ALLOWED_ORIGINS in your .env file
+const allowedOrigins = process.env.ALLOWED_ORIGINS 
+  ? process.env.ALLOWED_ORIGINS.split(',')
+  : null; // null means allow all origins
 
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
+    // If no specific origins are configured, allow all
+    if (!allowedOrigins) {
+      return callback(null, true);
+    }
     
+    // Allow requests with no origin (mobile apps, Postman, curl)
+    if (!origin) {
+      return callback(null, true);
+    }
+    
+    // Check if origin is in allowed list
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
@@ -24,8 +32,10 @@ app.use(cors({
     }
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Authorization'],
+  maxAge: 86400 // 24 hours - cache preflight requests
 }));
 
 // Basic middleware
