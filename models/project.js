@@ -277,7 +277,7 @@ const surfaceSchema = new Schema({
   length: { type: Number, default: 0, min: 0 },
 });
 
-// FIXED: Work item schema with better error handling
+// FIXED: Work item schema with description field
 const workItemSchema = new Schema({
   name: { type: String, required: [true, 'Work item name is required.'], trim: true },
   type: {
@@ -308,6 +308,7 @@ const workItemSchema = new Schema({
     }
   },
   subtype: { type: String, default: '', trim: true },
+  description: { type: String, default: '', trim: true },
   surfaces: { type: [surfaceSchema], default: [] },
   materialCost: { type: Number, default: 0, min: 0 },
   laborCost: { type: Number, default: 0, min: 0 },
