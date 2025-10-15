@@ -226,15 +226,24 @@ const validateCategoryKey = (key) => {
   return key.startsWith('custom_') || Object.keys(VALID_WORK_TYPES).includes(key);
 };
 
-// FIXED: Validator function for work types
+// FIXED: Validator function for work types - now handles custom work types
 const validateWorkType = (categoryKey, workType) => {
   if (!categoryKey || !workType) {
     console.warn(`Validation skipped: categoryKey=${categoryKey}, workType=${workType}`);
     return false;
   }
   
+  // CRITICAL FIX: Allow custom work types (those starting with 'custom-')
+  if (workType.startsWith('custom-')) {
+    console.log(`Custom work type detected: ${workType} - VALID`);
+    return true;
+  }
+  
   // Allow any work type for custom categories
-  if (categoryKey.startsWith('custom_')) return true;
+  if (categoryKey.startsWith('custom_')) {
+    console.log(`Custom category detected: ${categoryKey} - allowing work type: ${workType}`);
+    return true;
+  }
   
   // Check if the category exists in VALID_WORK_TYPES
   const validTypes = VALID_WORK_TYPES[categoryKey];
@@ -277,9 +286,10 @@ const surfaceSchema = new Schema({
   length: { type: Number, default: 0, min: 0 },
 });
 
-// FIXED: Work item schema with description field
+// FIXED: Work item schema with custom work type support
 const workItemSchema = new Schema({
   name: { type: String, required: [true, 'Work item name is required.'], trim: true },
+  customWorkTypeName: { type: String, default: '', trim: true }, 
   type: {
     type: String,
     required: [true, 'Work item type is required.'],
@@ -475,7 +485,7 @@ projectSchema.pre('validate', function(next) {
 
           // CRITICAL FIX: Set categoryKey for validation AND log it
           item.categoryKey = category.key;
-          console.log(`Set categoryKey for work item "${item.name}" (${item.type}): ${category.key}`);
+          console.log(`Set categoryKey for work item "${item.name}" (type: ${item.type}): ${category.key}`);
 
           // Normalize measurement types to ensure data consistency.
           item.measurementType = normalizeToCanonicalMeasurementType(item.measurementType);
