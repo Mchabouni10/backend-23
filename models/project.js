@@ -146,6 +146,23 @@ const VALID_WORK_TYPES = {
     'exterior-vent',
     'exterior-house-number',
   ],
+  garage: [
+    'garage-flooring',
+    'garage-walls',
+    'garage-ceiling',
+    'garage-door',
+    'garage-door-opener',
+    'garage-storage',
+    'garage-shelving',
+    'garage-lighting',
+    'garage-outlet',
+    'garage-insulation',
+    'garage-drywall',
+    'garage-paint',
+    'garage-epoxy-floor',
+    'garage-cabinets',
+    'garage-workbench',
+  ],
   electricity: [
     'electricity-wiring',
     'electricity-panel-upgrade',
@@ -218,6 +235,99 @@ const VALID_WORK_TYPES = {
     'general-vent-cover',
     'general-access-panel',
   ],
+  laundry: [
+    'laundry-flooring',
+    'laundry-walls',
+    'laundry-ceiling',
+    'laundry-cabinets',
+    'laundry-washer',
+    'laundry-dryer',
+    'laundry-sink',
+    'laundry-shelving',
+    'laundry-folding-table',
+    'laundry-countertop',
+    'laundry-lighting',
+    'laundry-outlet',
+    'laundry-dryer-vent',
+    'laundry-trim',
+    'laundry-baseboard',
+    'laundry-crown-molding',
+    'laundry-wainscoting',
+    'laundry-door',
+    'laundry-utility-sink-faucet',
+    'laundry-storage-rack',
+    'laundry-ironing-station',
+    'laundry-hanging-rods',
+    'laundry-ventilation-fan',
+  ],
+  'dining-room': [
+    'dining-room-flooring',
+    'dining-room-walls',
+    'dining-room-ceiling',
+    'dining-room-chandelier',
+    'dining-room-built-in-buffet',
+    'dining-room-display-cabinet',
+    'dining-room-window-treatments',
+    'dining-room-trim',
+    'dining-room-crown-molding',
+    'dining-room-wainscoting',
+    'dining-room-chair-rail',
+    'dining-room-baseboard',
+    'dining-room-lighting',
+    'dining-room-outlet',
+    'dining-room-switch',
+    'dining-room-window',
+    'dining-room-door',
+    'dining-room-accent-wall',
+    'dining-room-wall-art-frame',
+    'dining-room-ceiling-medallion',
+    'dining-room-serving-hutch',
+  ],
+  basement: [
+    'basement-flooring',
+    'basement-walls',
+    'basement-ceiling',
+    'basement-waterproofing',
+    'basement-egress-window',
+    'basement-sump-pump',
+    'basement-drop-ceiling',
+    'basement-insulation',
+    'basement-lighting',
+    'basement-trim',
+    'basement-baseboard',
+    'basement-staircase',
+    'basement-handrail',
+    'basement-storage-shelves',
+    'basement-built-in-bar',
+    'basement-home-theater',
+    'basement-outlet',
+    'basement-switch',
+    'basement-ventilation',
+    'basement-fireplace',
+    'basement-accent-wall',
+  ],
+  'walk-in-closet': [
+    'walk-in-closet-flooring',
+    'walk-in-closet-walls',
+    'walk-in-closet-ceiling',
+    'walk-in-closet-shelves',
+    'walk-in-closet-rods',
+    'walk-in-closet-drawers',
+    'walk-in-closet-organizer',
+    'walk-in-closet-lighting',
+    'walk-in-closet-mirror',
+    'walk-in-closet-door',
+    'walk-in-closet-bench',
+    'walk-in-closet-island',
+    'walk-in-closet-shoe-rack',
+    'walk-in-closet-trim',
+    'walk-in-closet-baseboard',
+    'walk-in-closet-crown-molding',
+    'walk-in-closet-accent-wall',
+    'walk-in-closet-carpet',
+    'walk-in-closet-storage-bins',
+    'walk-in-closet-valet-rod',
+  ],
 };
 
 // Validator function for category keys.
@@ -286,7 +396,7 @@ const surfaceSchema = new Schema({
   length: { type: Number, default: 0, min: 0 },
 });
 
-// FIXED: Work item schema with custom work type support
+// FIXED: Work item schema with improved validation
 const workItemSchema = new Schema({
   name: { type: String, required: [true, 'Work item name is required.'], trim: true },
   customWorkTypeName: { type: String, default: '', trim: true }, 
@@ -297,22 +407,35 @@ const workItemSchema = new Schema({
     validate: {
       validator: function(v) {
         try {
-          // Get category key from the work item itself (set by pre-validate hook)
-          const categoryKey = this.categoryKey;
+          // CRITICAL FIX: Get categoryKey from parent document during validation
+          // This works because Mongoose sets parent references during validation
+          let categoryKey = this.categoryKey;
           
-          if (!categoryKey) {
-            console.warn('Cannot validate work type: categoryKey not set');
-            return true; // Allow if categoryKey isn't set (will be set by hook)
+          // If categoryKey not set on work item, try to find it from parent
+          if (!categoryKey && this.parent && this.parent()) {
+            const parent = this.parent();
+            if (parent.key) {
+              categoryKey = parent.key;
+              console.log(`Using parent category key: ${categoryKey}`);
+            }
           }
           
-          return validateWorkType(categoryKey, v);
+          if (!categoryKey) {
+            console.warn(`Cannot validate work type: categoryKey not available for type "${v}"`);
+            // Return true to allow validation to pass - the pre-validate hook will set it
+            return true;
+          }
+          
+          const isValid = validateWorkType(categoryKey, v);
+          console.log(`Validating work type "${v}" for category "${categoryKey}": ${isValid ? 'VALID' : 'INVALID'}`);
+          return isValid;
         } catch (error) {
           console.error('Error validating work type:', error);
           return false;
         }
       },
       message: function(props) {
-        const categoryKey = this.categoryKey || 'unknown';
+        const categoryKey = this.categoryKey || this.parent?.()?.key || 'unknown';
         return `"${props.value}" is not a valid work type for category "${categoryKey}".`;
       }
     }
@@ -452,9 +575,7 @@ const projectSchema = new Schema({
   validateBeforeSave: true
 });
 
-// --- FIXED: Middleware (Hooks) ---
-
-// Enhanced pre-validation hook to ensure categoryKey is set and log validation issues
+// --- CRITICAL FIX: Enhanced pre-validation hook ---
 projectSchema.pre('validate', function(next) {
   try {
     console.log('=== PRE-VALIDATE HOOK START ===');
@@ -467,27 +588,28 @@ projectSchema.pre('validate', function(next) {
       }
     }
 
-    // 2. FIXED: Normalize measurement types and set category keys throughout the document.
-    if (this.isModified('categories') && Array.isArray(this.categories)) {
+    // 2. CRITICAL FIX: Set categoryKey on work items BEFORE validation runs
+    if (Array.isArray(this.categories)) {
       this.categories.forEach((category, categoryIndex) => {
         if (!category || !Array.isArray(category.workItems)) {
           console.warn(`Invalid category at index ${categoryIndex}:`, category);
           return;
         }
         
-        console.log(`Processing category ${categoryIndex}: key=${category.key}, name=${category.name}`);
+        console.log(`Processing category ${categoryIndex}: key="${category.key}", name="${category.name}"`);
         
+        // CRITICAL: Set categoryKey on each work item BEFORE validation
         category.workItems.forEach((item, itemIndex) => {
           if (!item) {
             console.warn(`Invalid work item at category ${categoryIndex}, item ${itemIndex}`);
             return;
           }
 
-          // CRITICAL FIX: Set categoryKey for validation AND log it
+          // Set categoryKey for validation
           item.categoryKey = category.key;
-          console.log(`Set categoryKey for work item "${item.name}" (type: ${item.type}): ${category.key}`);
+          console.log(`  ✅ Set categoryKey="${category.key}" for work item "${item.name}" (type: ${item.type})`);
 
-          // Normalize measurement types to ensure data consistency.
+          // Normalize measurement types
           item.measurementType = normalizeToCanonicalMeasurementType(item.measurementType);
           
           if (Array.isArray(item.surfaces)) {
@@ -497,8 +619,6 @@ projectSchema.pre('validate', function(next) {
               }
             });
           }
-          
-          console.log(`Work item ${itemIndex} processed: type=${item.type}, categoryKey=${item.categoryKey}, measurementType=${item.measurementType}`);
         });
       });
     }
@@ -506,7 +626,7 @@ projectSchema.pre('validate', function(next) {
     console.log('=== PRE-VALIDATE HOOK END ===');
     next();
   } catch (error) {
-    console.error('Pre-validation hook error:', error);
+    console.error('❌ Pre-validation hook error:', error);
     next(error);
   }
 });
@@ -520,7 +640,6 @@ projectSchema.index({ userId: 1, createdAt: -1 });
 
 // A helper to migrate legacy projects with 'deposit' fields to the new payment system.
 projectSchema.statics.migrateDepositToPayment = async function() {
-  // Find projects that have the old 'settings.deposit' field with a value.
   const projectsToMigrate = await this.find({
     'settings.deposit': { $exists: true, $gt: 0 }
   });
@@ -533,7 +652,6 @@ projectSchema.statics.migrateDepositToPayment = async function() {
   const migrationPromises = projectsToMigrate.map(async (project) => {
     const hasExistingDepositPayment = project.settings.payments.some(p => p.method === 'Deposit');
 
-    // Only migrate if a 'Deposit' payment doesn't already exist.
     if (!hasExistingDepositPayment) {
       project.settings.payments.push({
         date: project.settings.depositDate || project.customerInfo.startDate || new Date(),
@@ -544,13 +662,12 @@ projectSchema.statics.migrateDepositToPayment = async function() {
         status: 'Paid',
       });
 
-      // Mark the old paths for removal upon save.
       project.set('settings.deposit', undefined);
       project.set('settings.depositMethod', undefined);
       project.set('settings.depositDate', undefined);
 
       try {
-        await project.save({ validateBeforeSave: false }); // Skip validation for migration
+        await project.save({ validateBeforeSave: false });
         return 1;
       } catch (err) {
         console.error(`Failed to migrate project ${project._id}:`, err);
