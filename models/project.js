@@ -6,328 +6,20 @@ const Schema = mongoose.Schema;
 
 // A centralized definition of valid work types for each category, synchronized with workTypes.js
 const VALID_WORK_TYPES = {
-  kitchen: [
-    'kitchen-flooring',
-    'kitchen-tiles', 
-    'kitchen-backsplash',
-    'kitchen-ceiling',
-    'kitchen-walls',
-    'kitchen-countertop-surface',
-    'kitchen-cabinet-doors',
-    'kitchen-island-top',
-    'kitchen-cabinets',
-    'kitchen-countertops',
-    'kitchen-trim',
-    'kitchen-island-edge',
-    'kitchen-crown-molding',
-    'kitchen-toe-kicks',
-    'kitchen-cabinet-lighting',
-    'kitchen-under-cabinet-strips',
-    'kitchen-sink',
-    'kitchen-faucet',
-    'kitchen-lighting',
-    'kitchen-appliance',
-    'kitchen-hood',
-    'kitchen-garbage-disposal',
-    'kitchen-cabinet-hardware',
-    'kitchen-outlet',
-    'kitchen-switch',
-    'kitchen-pantry-organizer',
-  ],
-  bathroom: [
-    'bathroom-flooring',
-    'bathroom-tiles',
-    'bathroom-shower-tiles', 
-    'bathroom-walls',
-    'bathroom-ceiling',
-    'bathroom-shower-floor',
-    'bathroom-vanity-top',
-    'bathroom-mirror-wall',
-    'bathroom-vanity',
-    'bathroom-trim',
-    'bathroom-wainscoting',
-    'bathroom-shower-trim',
-    'bathroom-tub-surround',
-    'bathroom-chair-rail',
-    'bathroom-towel-bars',
-    'bathroom-grab-bars',
-    'bathroom-faucet',
-    'bathroom-shower-faucet',
-    'bathroom-fan',
-    'bathroom-towel-warmer',
-    'bathroom-toilet',
-    'bathroom-mirror',
-    'bathroom-lighting',
-    'bathroom-bathtub',
-    'bathroom-shower-ledge',
-    'bathroom-medicine-cabinet',
-    'bathroom-outlet',
-    'bathroom-shower-door',
-  ],
-  'living-room': [
-    'living-room-flooring',
-    'living-room-walls',
-    'living-room-ceiling',
-    'living-room-accent-wall',
-    'living-room-fireplace-surround',
-    'living-room-built-in-shelving',
-    'living-room-window-treatments',
-    'living-room-trim',
-    'living-room-crown-molding',
-    'living-room-wainscoting',
-    'living-room-chair-rail',
-    'living-room-baseboard',
-    'living-room-picture-ledge',
-    'living-room-mantle',
-    'living-room-cable-management',
-    'living-room-lighting',
-    'living-room-fireplace',
-    'living-room-ceiling-fan',
-    'living-room-tv-mount',
-    'living-room-outlet',
-    'living-room-switch',
-    'living-room-window',
-    'living-room-door',
-    'living-room-built-in-cabinet',
-    'living-room-speaker',
-  ],
-  bedroom: [
-    'bedroom-flooring',
-    'bedroom-walls',
-    'bedroom-ceiling',
-    'bedroom-closet-interior',
-    'bedroom-accent-wall',
-    'bedroom-window-treatments',
-    'bedroom-headboard-wall',
-    'bedroom-trim',
-    'bedroom-closet-shelves',
-    'bedroom-crown-molding',
-    'bedroom-baseboard',
-    'bedroom-chair-rail',
-    'bedroom-closet-rods',
-    'bedroom-window-sills',
-    'bedroom-built-in-bench',
-    'bedroom-lighting',
-    'bedroom-ceiling-fan',
-    'bedroom-window',
-    'bedroom-closet-organizer',
-    'bedroom-door',
-    'bedroom-outlet',
-    'bedroom-switch',
-    'bedroom-closet-door',
-    'bedroom-built-in-drawer',
-    'bedroom-mirror',
-  ],
-  exterior: [
-    'exterior-deck',
-    'exterior-siding',
-    'exterior-painting',
-    'exterior-roofing',
-    'exterior-patio',
-    'exterior-driveway',
-    'exterior-walkway',
-    'exterior-retaining-wall',
-    'exterior-fencing',
-    'exterior-trim',
-    'exterior-gutters',
-    'exterior-deck-railing',
-    'exterior-soffit',
-    'exterior-fascia',
-    'exterior-foundation-trim',
-    'exterior-landscape-edging',
-    'exterior-door',
-    'exterior-window',
-    'exterior-lighting',
-    'exterior-mailbox',
-    'exterior-gate',
-    'exterior-outlet',
-    'exterior-shutter',
-    'exterior-downspout',
-    'exterior-vent',
-    'exterior-house-number',
-  ],
-  garage: [
-    'garage-flooring',
-    'garage-walls',
-    'garage-ceiling',
-    'garage-door',
-    'garage-door-opener',
-    'garage-storage',
-    'garage-shelving',
-    'garage-lighting',
-    'garage-outlet',
-    'garage-insulation',
-    'garage-drywall',
-    'garage-paint',
-    'garage-epoxy-floor',
-    'garage-cabinets',
-    'garage-workbench',
-  ],
-  electricity: [
-    'electricity-wiring',
-    'electricity-panel-upgrade',
-    'electricity-circuit-breaker',
-    'electricity-outlet-installation',
-    'electricity-lighting-fixture',
-    'electricity-ceiling-fan-installation',
-    'electricity-switch-installation',
-    'electricity-surge-protector',
-    'electricity-grounding-system',
-    'electricity-smoke-detector-installation',
-    'electricity-smart-home-integration',
-    'electricity-exterior-lighting',
-    'electricity-appliance-circuit',
-  ],
-  plumbing: [
-    'plumbing-pipe-installation',
-    'plumbing-faucet-installation',
-    'plumbing-toilet-installation',
-    'plumbing-shower-installation',
-    'plumbing-sink-installation',
-    'plumbing-water-heater',
-    'plumbing-drain-cleaning',
-    'plumbing-leak-repair',
-    'plumbing-valve-replacement',
-    'plumbing-sump-pump',
-    'plumbing-water-line',
-    'plumbing-sewer-line',
-  ],
-  hallway: [
-    'hallway-flooring',
-    'hallway-walls',
-    'hallway-ceiling',
-    'hallway-lighting',
-    'hallway-trim',
-    'hallway-baseboard',
-    'hallway-crown-molding',
-    'hallway-wainscoting',
-    'hallway-door',
-    'hallway-runner',
-    'hallway-wall-art-frame',
-    'hallway-console-table',
-    'hallway-mirror',
-  ],
-  general: [
-    'general-drywall',
-    'general-painting',
-    'general-flooring',
-    'general-ceiling',
-    'general-wall-repair',
-    'general-insulation',
-    'general-paneling',
-    'general-wallpaper',
-    'general-trim',
-    'general-molding',
-    'general-chair-rail',
-    'general-baseboard',
-    'general-door-frame',
-    'general-window-frame',
-    'general-pipe-covering',
-    'general-conduit-covering',
-    'general-lighting',
-    'general-window',
-    'general-door',
-    'general-outlet',
-    'general-switch',
-    'general-smoke-detector',
-    'general-thermostat',
-    'general-ceiling-medallion',
-    'general-vent-cover',
-    'general-access-panel',
-  ],
-  laundry: [
-    'laundry-flooring',
-    'laundry-walls',
-    'laundry-ceiling',
-    'laundry-cabinets',
-    'laundry-washer',
-    'laundry-dryer',
-    'laundry-sink',
-    'laundry-shelving',
-    'laundry-folding-table',
-    'laundry-countertop',
-    'laundry-lighting',
-    'laundry-outlet',
-    'laundry-dryer-vent',
-    'laundry-trim',
-    'laundry-baseboard',
-    'laundry-crown-molding',
-    'laundry-wainscoting',
-    'laundry-door',
-    'laundry-utility-sink-faucet',
-    'laundry-storage-rack',
-    'laundry-ironing-station',
-    'laundry-hanging-rods',
-    'laundry-ventilation-fan',
-  ],
-  'dining-room': [
-    'dining-room-flooring',
-    'dining-room-walls',
-    'dining-room-ceiling',
-    'dining-room-chandelier',
-    'dining-room-built-in-buffet',
-    'dining-room-display-cabinet',
-    'dining-room-window-treatments',
-    'dining-room-trim',
-    'dining-room-crown-molding',
-    'dining-room-wainscoting',
-    'dining-room-chair-rail',
-    'dining-room-baseboard',
-    'dining-room-lighting',
-    'dining-room-outlet',
-    'dining-room-switch',
-    'dining-room-window',
-    'dining-room-door',
-    'dining-room-accent-wall',
-    'dining-room-wall-art-frame',
-    'dining-room-ceiling-medallion',
-    'dining-room-serving-hutch',
-  ],
-  basement: [
-    'basement-flooring',
-    'basement-walls',
-    'basement-ceiling',
-    'basement-waterproofing',
-    'basement-egress-window',
-    'basement-sump-pump',
-    'basement-drop-ceiling',
-    'basement-insulation',
-    'basement-lighting',
-    'basement-trim',
-    'basement-baseboard',
-    'basement-staircase',
-    'basement-handrail',
-    'basement-storage-shelves',
-    'basement-built-in-bar',
-    'basement-home-theater',
-    'basement-outlet',
-    'basement-switch',
-    'basement-ventilation',
-    'basement-fireplace',
-    'basement-accent-wall',
-  ],
-  'walk-in-closet': [
-    'walk-in-closet-flooring',
-    'walk-in-closet-walls',
-    'walk-in-closet-ceiling',
-    'walk-in-closet-shelves',
-    'walk-in-closet-rods',
-    'walk-in-closet-drawers',
-    'walk-in-closet-organizer',
-    'walk-in-closet-lighting',
-    'walk-in-closet-mirror',
-    'walk-in-closet-door',
-    'walk-in-closet-bench',
-    'walk-in-closet-island',
-    'walk-in-closet-shoe-rack',
-    'walk-in-closet-trim',
-    'walk-in-closet-baseboard',
-    'walk-in-closet-crown-molding',
-    'walk-in-closet-accent-wall',
-    'walk-in-closet-carpet',
-    'walk-in-closet-storage-bins',
-    'walk-in-closet-valet-rod',
-  ],
+  kitchen: ['kitchen-flooring', 'kitchen-tiles', 'kitchen-backsplash', 'kitchen-ceiling', 'kitchen-walls', 'kitchen-countertop-surface', 'kitchen-cabinet-doors', 'kitchen-island-top', 'kitchen-cabinets', 'kitchen-countertops', 'kitchen-trim', 'kitchen-island-edge', 'kitchen-crown-molding', 'kitchen-toe-kicks', 'kitchen-cabinet-lighting', 'kitchen-under-cabinet-strips', 'kitchen-sink', 'kitchen-faucet', 'kitchen-lighting', 'kitchen-appliance', 'kitchen-hood', 'kitchen-garbage-disposal', 'kitchen-cabinet-hardware', 'kitchen-outlet', 'kitchen-switch', 'kitchen-pantry-organizer'],
+  bathroom: ['bathroom-flooring', 'bathroom-tiles', 'bathroom-shower-tiles', 'bathroom-walls', 'bathroom-ceiling', 'bathroom-shower-floor', 'bathroom-vanity-top', 'bathroom-mirror-wall', 'bathroom-vanity', 'bathroom-trim', 'bathroom-wainscoting', 'bathroom-shower-trim', 'bathroom-tub-surround', 'bathroom-chair-rail', 'bathroom-towel-bars', 'bathroom-grab-bars', 'bathroom-faucet', 'bathroom-shower-faucet', 'bathroom-fan', 'bathroom-towel-warmer', 'bathroom-toilet', 'bathroom-mirror', 'bathroom-lighting', 'bathroom-bathtub', 'bathroom-shower-ledge', 'bathroom-medicine-cabinet', 'bathroom-outlet', 'bathroom-shower-door'],
+  'living-room': ['living-room-flooring', 'living-room-walls', 'living-room-ceiling', 'living-room-accent-wall', 'living-room-fireplace-surround', 'living-room-built-in-shelving', 'living-room-window-treatments', 'living-room-trim', 'living-room-crown-molding', 'living-room-wainscoting', 'living-room-chair-rail', 'living-room-baseboard', 'living-room-picture-ledge', 'living-room-mantle', 'living-room-cable-management', 'living-room-lighting', 'living-room-fireplace', 'living-room-ceiling-fan', 'living-room-tv-mount', 'living-room-outlet', 'living-room-switch', 'living-room-window', 'living-room-door', 'living-room-built-in-cabinet', 'living-room-speaker'],
+  bedroom: ['bedroom-flooring', 'bedroom-walls', 'bedroom-ceiling', 'bedroom-closet-interior', 'bedroom-accent-wall', 'bedroom-window-treatments', 'bedroom-headboard-wall', 'bedroom-trim', 'bedroom-closet-shelves', 'bedroom-crown-molding', 'bedroom-baseboard', 'bedroom-chair-rail', 'bedroom-closet-rods', 'bedroom-window-sills', 'bedroom-built-in-bench', 'bedroom-lighting', 'bedroom-ceiling-fan', 'bedroom-window', 'bedroom-closet-organizer', 'bedroom-door', 'bedroom-outlet', 'bedroom-switch', 'bedroom-closet-door', 'bedroom-built-in-drawer', 'bedroom-mirror'],
+  exterior: ['exterior-deck', 'exterior-siding', 'exterior-painting', 'exterior-roofing', 'exterior-patio', 'exterior-driveway', 'exterior-walkway', 'exterior-retaining-wall', 'exterior-fencing', 'exterior-trim', 'exterior-gutters', 'exterior-deck-railing', 'exterior-soffit', 'exterior-fascia', 'exterior-foundation-trim', 'exterior-landscape-edging', 'exterior-door', 'exterior-window', 'exterior-lighting', 'exterior-mailbox', 'exterior-gate', 'exterior-outlet', 'exterior-shutter', 'exterior-downspout', 'exterior-vent', 'exterior-house-number'],
+  garage: ['garage-flooring', 'garage-walls', 'garage-ceiling', 'garage-door-opener', 'garage-storage-shelves', 'garage-workbench', 'garage-cabinets', 'garage-lighting', 'garage-outlet', 'garage-insulation', 'garage-epoxy-coating', 'garage-door', 'garage-window', 'garage-ventilation', 'garage-wall-organizer', 'garage-ceiling-storage', 'garage-bike-rack', 'garage-tool-storage'],
+  electricity: ['electricity-wiring', 'electricity-panel-upgrade', 'electricity-circuit-breaker', 'electricity-outlet-installation', 'electricity-lighting-fixture', 'electricity-ceiling-fan-installation', 'electricity-switch-installation', 'electricity-surge-protector', 'electricity-grounding-system', 'electricity-smoke-detector-installation', 'electricity-smart-home-integration', 'electricity-exterior-lighting', 'electricity-appliance-circuit'],
+  plumbing: ['plumbing-pipe-installation', 'plumbing-faucet-installation', 'plumbing-toilet-installation', 'plumbing-shower-installation', 'plumbing-sink-installation', 'plumbing-water-heater', 'plumbing-drain-cleaning', 'plumbing-leak-repair', 'plumbing-valve-replacement', 'plumbing-sump-pump', 'plumbing-water-line', 'plumbing-sewer-line'],
+  hallway: ['hallway-flooring', 'hallway-walls', 'hallway-ceiling', 'hallway-lighting', 'hallway-trim', 'hallway-baseboard', 'hallway-crown-molding', 'hallway-wainscoting', 'hallway-door', 'hallway-runner', 'hallway-wall-art-frame', 'hallway-console-table', 'hallway-mirror'],
+  general: ['general-drywall', 'general-painting', 'general-flooring', 'general-ceiling', 'general-wall-repair', 'general-insulation', 'general-paneling', 'general-wallpaper', 'general-trim', 'general-molding', 'general-chair-rail', 'general-baseboard', 'general-door-frame', 'general-window-frame', 'general-pipe-covering', 'general-conduit-covering', 'general-lighting', 'general-window', 'general-door', 'general-outlet', 'general-switch', 'general-smoke-detector', 'general-thermostat', 'general-ceiling-medallion', 'general-vent-cover', 'general-access-panel'],
+  laundry: ['laundry-flooring', 'laundry-walls', 'laundry-ceiling', 'laundry-cabinets', 'laundry-washer', 'laundry-dryer', 'laundry-sink', 'laundry-shelving', 'laundry-folding-table', 'laundry-countertop', 'laundry-lighting', 'laundry-outlet', 'laundry-dryer-vent', 'laundry-trim', 'laundry-baseboard', 'laundry-crown-molding', 'laundry-wainscoting', 'laundry-door', 'laundry-utility-sink-faucet', 'laundry-storage-rack', 'laundry-ironing-station', 'laundry-hanging-rods', 'laundry-ventilation-fan'],
+  'dining-room': ['dining-room-flooring', 'dining-room-walls', 'dining-room-ceiling', 'dining-room-chandelier', 'dining-room-built-in-buffet', 'dining-room-display-cabinet', 'dining-room-window-treatments', 'dining-room-trim', 'dining-room-crown-molding', 'dining-room-wainscoting', 'dining-room-chair-rail', 'dining-room-baseboard', 'dining-room-lighting', 'dining-room-outlet', 'dining-room-switch', 'dining-room-window', 'dining-room-door', 'dining-room-accent-wall', 'dining-room-wall-art-frame', 'dining-room-ceiling-medallion', 'dining-room-serving-hutch'],
+  basement: ['basement-flooring', 'basement-walls', 'basement-ceiling', 'basement-waterproofing', 'basement-egress-window', 'basement-sump-pump', 'basement-drop-ceiling', 'basement-insulation', 'basement-lighting', 'basement-trim', 'basement-baseboard', 'basement-staircase', 'basement-handrail', 'basement-storage-shelves', 'basement-built-in-bar', 'basement-home-theater', 'basement-outlet', 'basement-switch', 'basement-ventilation', 'basement-fireplace', 'basement-accent-wall'],
+  'walk-in-closet': ['walk-in-closet-flooring', 'walk-in-closet-walls', 'walk-in-closet-ceiling', 'walk-in-closet-shelves', 'walk-in-closet-rods', 'walk-in-closet-drawers', 'walk-in-closet-organizer', 'walk-in-closet-lighting', 'walk-in-closet-mirror', 'walk-in-closet-door', 'walk-in-closet-bench', 'walk-in-closet-island', 'walk-in-closet-shoe-rack', 'walk-in-closet-trim', 'walk-in-closet-baseboard', 'walk-in-closet-crown-molding', 'walk-in-closet-accent-wall', 'walk-in-closet-carpet', 'walk-in-closet-storage-bins', 'walk-in-closet-valet-rod'],
 };
 
 // Validator function for category keys.
@@ -336,36 +28,36 @@ const validateCategoryKey = (key) => {
   return key.startsWith('custom_') || Object.keys(VALID_WORK_TYPES).includes(key);
 };
 
-// FIXED: Validator function for work types - now handles custom work types
+// ✅ ENHANCED: Validator function for work types with better logging
 const validateWorkType = (categoryKey, workType) => {
   if (!categoryKey || !workType) {
-    console.warn(`Validation skipped: categoryKey=${categoryKey}, workType=${workType}`);
+    console.warn(`⚠️ Validation skipped: categoryKey=${categoryKey}, workType=${workType}`);
     return false;
   }
   
-  // CRITICAL FIX: Allow custom work types (those starting with 'custom-')
-  if (workType.startsWith('custom-')) {
-    console.log(`Custom work type detected: ${workType} - VALID`);
+  // ✅ CRITICAL: Allow custom-work-type for ALL categories
+  if (workType === 'custom-work-type') {
+    console.log(`✅ Custom work type detected for category "${categoryKey}" - VALID`);
     return true;
   }
   
   // Allow any work type for custom categories
   if (categoryKey.startsWith('custom_')) {
-    console.log(`Custom category detected: ${categoryKey} - allowing work type: ${workType}`);
+    console.log(`✅ Custom category detected: ${categoryKey} - allowing work type: ${workType}`);
     return true;
   }
   
   // Check if the category exists in VALID_WORK_TYPES
   const validTypes = VALID_WORK_TYPES[categoryKey];
   if (!validTypes) {
-    console.warn(`Category '${categoryKey}' not found in VALID_WORK_TYPES`);
+    console.warn(`⚠️ Category '${categoryKey}' not found in VALID_WORK_TYPES`);
     return false;
   }
   
   const isValid = validTypes.includes(workType);
   
   if (!isValid) {
-    console.warn(`Invalid work type '${workType}' for category '${categoryKey}'. Valid types:`, validTypes);
+    console.warn(`❌ Invalid work type '${workType}' for category '${categoryKey}'. Valid types:`, validTypes.slice(0, 5), '...');
   }
   
   return isValid;
@@ -378,12 +70,11 @@ const normalizeToCanonicalMeasurementType = (type) => {
   if (['sqft', 'square-foot', 'square foot', 'single-surface'].includes(t)) return 'sqft';
   if (['linear-foot', 'linear ft', 'linear'].includes(t)) return 'linear-foot';
   if (['by-unit', 'by unit', 'unit', 'units'].includes(t)) return 'by-unit';
-  return 'sqft'; // Default fallback
+  return 'sqft';
 };
 
 // --- Sub-Schemas ---
 
-// Clean and focused surface data structure.
 const surfaceSchema = new Schema({
   name: { type: String, default: '', trim: true },
   measurementType: { type: String, required: true },
@@ -396,10 +87,28 @@ const surfaceSchema = new Schema({
   length: { type: Number, default: 0, min: 0 },
 });
 
-// FIXED: Work item schema with improved validation
+// ✅ FIXED: Work item schema with proper customWorkTypeName validation
 const workItemSchema = new Schema({
   name: { type: String, required: [true, 'Work item name is required.'], trim: true },
-  customWorkTypeName: { type: String, default: '', trim: true }, 
+  
+  // ✅ FIX #1: Add conditional validation for customWorkTypeName
+  customWorkTypeName: { 
+    type: String, 
+    default: '', 
+    trim: true,
+    validate: {
+      validator: function(v) {
+        // If type is custom-work-type, customWorkTypeName MUST be provided
+        if (this.type === 'custom-work-type') {
+          return v && v.trim().length > 0;
+        }
+        // For non-custom types, it's optional
+        return true;
+      },
+      message: 'Custom work type name is required when using custom work types.'
+    }
+  },
+  
   type: {
     type: String,
     required: [true, 'Work item type is required.'],
@@ -407,30 +116,28 @@ const workItemSchema = new Schema({
     validate: {
       validator: function(v) {
         try {
-          // CRITICAL FIX: Get categoryKey from parent document during validation
-          // This works because Mongoose sets parent references during validation
           let categoryKey = this.categoryKey;
           
-          // If categoryKey not set on work item, try to find it from parent
+          // Try to get categoryKey from parent if not set
           if (!categoryKey && this.parent && this.parent()) {
             const parent = this.parent();
             if (parent.key) {
               categoryKey = parent.key;
-              console.log(`Using parent category key: ${categoryKey}`);
             }
           }
           
           if (!categoryKey) {
-            console.warn(`Cannot validate work type: categoryKey not available for type "${v}"`);
-            // Return true to allow validation to pass - the pre-validate hook will set it
-            return true;
+            console.warn(`⚠️ Cannot validate work type: categoryKey not available for type "${v}"`);
+            return true; // Allow validation to pass if categoryKey isn't available yet
           }
           
           const isValid = validateWorkType(categoryKey, v);
-          console.log(`Validating work type "${v}" for category "${categoryKey}": ${isValid ? 'VALID' : 'INVALID'}`);
+          if (!isValid) {
+            console.log(`❌ Validation failed: work type "${v}" for category "${categoryKey}"`);
+          }
           return isValid;
         } catch (error) {
-          console.error('Error validating work type:', error);
+          console.error('❌ Error validating work type:', error);
           return false;
         }
       },
@@ -440,6 +147,7 @@ const workItemSchema = new Schema({
       }
     }
   },
+  
   subtype: { type: String, default: '', trim: true },
   description: { type: String, default: '', trim: true },
   surfaces: { type: [surfaceSchema], default: [] },
@@ -447,7 +155,7 @@ const workItemSchema = new Schema({
   laborCost: { type: Number, default: 0, min: 0 },
   notes: { type: String, default: '', trim: true },
   measurementType: { type: String, required: true, default: 'sqft' },
-  categoryKey: { type: String }, // Denormalized for easier access, set by pre-validate hook
+  categoryKey: { type: String },
 });
 
 const categorySchema = new Schema({
@@ -479,7 +187,6 @@ const paymentSchema = new Schema({
   status: { type: String, enum: ['Pending', 'Paid', 'Overdue'], default: 'Paid' },
 }, { timestamps: true });
 
-// Settings are for user inputs only. Calculated totals are removed to prevent data inconsistency.
 const settingsSchema = new Schema({
   taxRate: { type: Number, default: 0, min: 0, max: 1 },
   transportationFee: { type: Number, default: 0, min: 0 },
@@ -490,7 +197,6 @@ const settingsSchema = new Schema({
   payments: { type: [paymentSchema], default: [] },
 });
 
-// Customer info with stronger validation.
 const customerInfoSchema = new Schema({
   firstName: { type: String, required: [true, 'First name is required.'], trim: true },
   lastName: { type: String, required: [true, 'Last name is required.'], trim: true },
@@ -530,7 +236,6 @@ const customerInfoSchema = new Schema({
     }
   },
   notes: { type: String, default: '', trim: true },
-  // Frontend helpers for address components
   addressNumber: String,
   direction: String,
   streetName: String,
@@ -547,11 +252,9 @@ const projectSchema = new Schema({
     validate: [(v) => Array.isArray(v) && v.length > 0, 'Project must have at least one category.']
   },
   settings: { type: settingsSchema, default: {} },
-
-  // Stores results from the backend calculation engine.
   totals: {
     materialCost: { type: Number, default: 0 },
-    laborCost: { type: Number, default: 0 }, // After discount
+    laborCost: { type: Number, default: 0 },
     laborCostBeforeDiscount: { type: Number, default: 0 },
     laborDiscount: { type: Number, default: 0 },
     wasteCost: { type: Number, default: 0 },
@@ -559,11 +262,9 @@ const projectSchema = new Schema({
     markupAmount: { type: Number, default: 0 },
     miscFeesTotal: { type: Number, default: 0 },
     transportationFee: { type: Number, default: 0 },
-    subtotal: { type: Number, default: 0 }, // Includes waste cost
+    subtotal: { type: Number, default: 0 },
     total: { type: Number, default: 0 },
   },
-
-  // Stores payment calculation results.
   paymentDetails: {
     totalPaid: { type: Number, default: 0 },
     totalDue: { type: Number, default: 0 },
@@ -575,43 +276,57 @@ const projectSchema = new Schema({
   validateBeforeSave: true
 });
 
-// --- CRITICAL FIX: Enhanced pre-validation hook ---
+// ✅ ENHANCED: Pre-validation hook with better error handling
 projectSchema.pre('validate', function(next) {
   try {
     console.log('=== PRE-VALIDATE HOOK START ===');
     
-    // 1. Assemble full street address from components if they exist.
+    // Build full street address from components
     if (this.customerInfo) {
       const { addressNumber, direction, streetName, streetType } = this.customerInfo;
       if (addressNumber || streetName) {
-        this.customerInfo.street = [addressNumber, direction, streetName, streetType].filter(Boolean).join(' ').trim();
+        this.customerInfo.street = [addressNumber, direction, streetName, streetType]
+          .filter(Boolean)
+          .join(' ')
+          .trim();
       }
     }
 
-    // 2. CRITICAL FIX: Set categoryKey on work items BEFORE validation runs
+    // Process categories and work items
     if (Array.isArray(this.categories)) {
       this.categories.forEach((category, categoryIndex) => {
         if (!category || !Array.isArray(category.workItems)) {
-          console.warn(`Invalid category at index ${categoryIndex}:`, category);
+          console.warn(`⚠️ Invalid category at index ${categoryIndex}:`, category);
           return;
         }
         
-        console.log(`Processing category ${categoryIndex}: key="${category.key}", name="${category.name}"`);
+        console.log(`📁 Processing category ${categoryIndex}: key="${category.key}", name="${category.name}"`);
         
-        // CRITICAL: Set categoryKey on each work item BEFORE validation
         category.workItems.forEach((item, itemIndex) => {
           if (!item) {
-            console.warn(`Invalid work item at category ${categoryIndex}, item ${itemIndex}`);
+            console.warn(`⚠️ Invalid work item at category ${categoryIndex}, item ${itemIndex}`);
             return;
           }
 
-          // Set categoryKey for validation
+          // ✅ CRITICAL: Set categoryKey for validation
           item.categoryKey = category.key;
-          console.log(`  ✅ Set categoryKey="${category.key}" for work item "${item.name}" (type: ${item.type})`);
+          
+          // ✅ FIX #2: Validate custom work types have customWorkTypeName
+          if (item.type === 'custom-work-type') {
+            if (!item.customWorkTypeName || item.customWorkTypeName.trim() === '') {
+              console.error(`❌ Custom work item at category ${categoryIndex}, item ${itemIndex} missing customWorkTypeName`);
+              // The schema validator will catch this and return proper error
+            } else {
+              console.log(`  ✅ Custom work type "${item.customWorkTypeName}" validated for categoryKey="${category.key}"`);
+            }
+          } else {
+            console.log(`  ✅ Standard work type "${item.type}" for categoryKey="${category.key}"`);
+          }
 
           // Normalize measurement types
           item.measurementType = normalizeToCanonicalMeasurementType(item.measurementType);
           
+          // Normalize surface measurement types
           if (Array.isArray(item.surfaces)) {
             item.surfaces.forEach(surface => {
               if (surface) {
@@ -631,6 +346,21 @@ projectSchema.pre('validate', function(next) {
   }
 });
 
+// ✅ NEW: Post-validation hook for additional checks
+projectSchema.post('validate', function(doc) {
+  console.log('✅ Project validation passed successfully');
+  
+  // Log summary of what was validated
+  if (doc.categories) {
+    const totalWorkItems = doc.categories.reduce((sum, cat) => sum + (cat.workItems?.length || 0), 0);
+    const customWorkItems = doc.categories.reduce((sum, cat) => {
+      return sum + (cat.workItems?.filter(item => item.type === 'custom-work-type').length || 0);
+    }, 0);
+    
+    console.log(`📊 Validation summary: ${doc.categories.length} categories, ${totalWorkItems} work items (${customWorkItems} custom)`);
+  }
+});
+
 // --- Indexes ---
 projectSchema.index({ userId: 1, 'customerInfo.lastName': 1 });
 projectSchema.index({ userId: 1, 'customerInfo.startDate': 1 });
@@ -638,7 +368,47 @@ projectSchema.index({ userId: 1, createdAt: -1 });
 
 // --- Static Methods ---
 
-// A helper to migrate legacy projects with 'deposit' fields to the new payment system.
+/**
+ * ✅ NEW: Validate and repair corrupted projects
+ */
+projectSchema.statics.validateAndRepairProjects = async function() {
+  console.log('🔧 Starting project validation and repair...');
+  
+  const projects = await this.find({});
+  const repairs = [];
+  
+  for (const project of projects) {
+    let needsRepair = false;
+    
+    project.categories.forEach((category, catIndex) => {
+      category.workItems.forEach((item, itemIndex) => {
+        // Check for custom work types without names
+        if (item.type === 'custom-work-type' && (!item.customWorkTypeName || !item.customWorkTypeName.trim())) {
+          console.warn(`⚠️ Found corrupted custom work type in project ${project._id}, category ${catIndex}, item ${itemIndex}`);
+          item.customWorkTypeName = 'Unnamed Custom Work';
+          needsRepair = true;
+        }
+      });
+    });
+    
+    if (needsRepair) {
+      try {
+        await project.save({ validateBeforeSave: false });
+        repairs.push(project._id);
+        console.log(`✅ Repaired project ${project._id}`);
+      } catch (err) {
+        console.error(`❌ Failed to repair project ${project._id}:`, err.message);
+      }
+    }
+  }
+  
+  console.log(`✅ Repair complete. Fixed ${repairs.length} projects.`);
+  return { repaired: repairs.length, projectIds: repairs };
+};
+
+/**
+ * Legacy: Migrate deposits to payment system
+ */
 projectSchema.statics.migrateDepositToPayment = async function() {
   const projectsToMigrate = await this.find({
     'settings.deposit': { $exists: true, $gt: 0 }
