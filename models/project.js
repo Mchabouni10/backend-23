@@ -1,10 +1,10 @@
 // models/project.js
+
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
 // --- Constants & Helper Functions ---
 
-// A centralized definition of valid work types for each category, synchronized with workTypes.js
 const VALID_WORK_TYPES = {
   kitchen: ['kitchen-flooring', 'kitchen-tiles', 'kitchen-backsplash', 'kitchen-ceiling', 'kitchen-walls', 'kitchen-countertop-surface', 'kitchen-cabinet-doors', 'kitchen-island-top', 'kitchen-cabinets', 'kitchen-countertops', 'kitchen-trim', 'kitchen-island-edge', 'kitchen-crown-molding', 'kitchen-toe-kicks', 'kitchen-cabinet-lighting', 'kitchen-under-cabinet-strips', 'kitchen-sink', 'kitchen-faucet', 'kitchen-lighting', 'kitchen-appliance', 'kitchen-hood', 'kitchen-garbage-disposal', 'kitchen-cabinet-hardware', 'kitchen-outlet', 'kitchen-switch', 'kitchen-pantry-organizer'],
   bathroom: ['bathroom-flooring', 'bathroom-tiles', 'bathroom-shower-tiles', 'bathroom-walls', 'bathroom-ceiling', 'bathroom-shower-floor', 'bathroom-vanity-top', 'bathroom-mirror-wall', 'bathroom-vanity', 'bathroom-trim', 'bathroom-wainscoting', 'bathroom-shower-trim', 'bathroom-tub-surround', 'bathroom-chair-rail', 'bathroom-towel-bars', 'bathroom-grab-bars', 'bathroom-faucet', 'bathroom-shower-faucet', 'bathroom-fan', 'bathroom-towel-warmer', 'bathroom-toilet', 'bathroom-mirror', 'bathroom-lighting', 'bathroom-bathtub', 'bathroom-shower-ledge', 'bathroom-medicine-cabinet', 'bathroom-outlet', 'bathroom-shower-door'],
@@ -22,55 +22,43 @@ const VALID_WORK_TYPES = {
   'walk-in-closet': ['walk-in-closet-flooring', 'walk-in-closet-walls', 'walk-in-closet-ceiling', 'walk-in-closet-shelves', 'walk-in-closet-rods', 'walk-in-closet-drawers', 'walk-in-closet-organizer', 'walk-in-closet-lighting', 'walk-in-closet-mirror', 'walk-in-closet-door', 'walk-in-closet-bench', 'walk-in-closet-island', 'walk-in-closet-shoe-rack', 'walk-in-closet-trim', 'walk-in-closet-baseboard', 'walk-in-closet-crown-molding', 'walk-in-closet-accent-wall', 'walk-in-closet-carpet', 'walk-in-closet-storage-bins', 'walk-in-closet-valet-rod'],
 };
 
-// Validator function for category keys.
 const validateCategoryKey = (key) => {
   if (!key) return false;
   return key.startsWith('custom_') || Object.keys(VALID_WORK_TYPES).includes(key);
 };
 
-// ✅ ENHANCED: Validator function for work types with better logging
 const validateWorkType = (categoryKey, workType) => {
   if (!categoryKey || !workType) {
     console.warn(`⚠️ Validation skipped: categoryKey=${categoryKey}, workType=${workType}`);
     return false;
   }
-  
-  // ✅ CRITICAL: Allow custom-work-type for ALL categories
   if (workType === 'custom-work-type') {
     console.log(`✅ Custom work type detected for category "${categoryKey}" - VALID`);
     return true;
   }
-  
-  // Allow any work type for custom categories
   if (categoryKey.startsWith('custom_')) {
     console.log(`✅ Custom category detected: ${categoryKey} - allowing work type: ${workType}`);
     return true;
   }
-  
-  // Check if the category exists in VALID_WORK_TYPES
   const validTypes = VALID_WORK_TYPES[categoryKey];
   if (!validTypes) {
     console.warn(`⚠️ Category '${categoryKey}' not found in VALID_WORK_TYPES`);
     return false;
   }
-  
   const isValid = validTypes.includes(workType);
-  
   if (!isValid) {
-    console.warn(`❌ Invalid work type '${workType}' for category '${categoryKey}'. Valid types:`, validTypes.slice(0, 5), '...');
+    console.warn(`❌ Invalid work type '${workType}' for category '${categoryKey}'.`);
   }
-  
   return isValid;
 };
 
-// Normalizes various measurement type strings into one of three canonical values.
 const normalizeToCanonicalMeasurementType = (type) => {
-  if (!type || typeof type !== 'string') return 'sqft';
+  if (!type || typeof type !== 'string') return 'square-foot';
   const t = type.toLowerCase().trim();
-  if (['sqft', 'square-foot', 'square foot', 'single-surface'].includes(t)) return 'sqft';
+  if (['sqft', 'square-foot', 'square foot', 'single-surface'].includes(t)) return 'square-foot';
   if (['linear-foot', 'linear ft', 'linear'].includes(t)) return 'linear-foot';
   if (['by-unit', 'by unit', 'unit', 'units'].includes(t)) return 'by-unit';
-  return 'sqft';
+  return 'square-foot';
 };
 
 // --- Sub-Schemas ---
@@ -87,50 +75,38 @@ const surfaceSchema = new Schema({
   length: { type: Number, default: 0, min: 0 },
 });
 
-// ✅ FIXED: Work item schema with proper customWorkTypeName validation
 const workItemSchema = new Schema({
   name: { type: String, required: [true, 'Work item name is required.'], trim: true },
-  
-  // ✅ FIX #1: Add conditional validation for customWorkTypeName
-  customWorkTypeName: { 
-    type: String, 
-    default: '', 
+  customWorkTypeName: {
+    type: String,
+    default: '',
     trim: true,
     validate: {
-      validator: function(v) {
-        // If type is custom-work-type, customWorkTypeName MUST be provided
+      validator: function (v) {
         if (this.type === 'custom-work-type') {
           return v && v.trim().length > 0;
         }
-        // For non-custom types, it's optional
         return true;
       },
-      message: 'Custom work type name is required when using custom work types.'
-    }
+      message: 'Custom work type name is required when using custom work types.',
+    },
   },
-  
   type: {
     type: String,
     required: [true, 'Work item type is required.'],
     trim: true,
     validate: {
-      validator: function(v) {
+      validator: function (v) {
         try {
           let categoryKey = this.categoryKey;
-          
-          // Try to get categoryKey from parent if not set
           if (!categoryKey && this.parent && this.parent()) {
             const parent = this.parent();
-            if (parent.key) {
-              categoryKey = parent.key;
-            }
+            if (parent.key) categoryKey = parent.key;
           }
-          
           if (!categoryKey) {
             console.warn(`⚠️ Cannot validate work type: categoryKey not available for type "${v}"`);
-            return true; // Allow validation to pass if categoryKey isn't available yet
+            return true;
           }
-          
           const isValid = validateWorkType(categoryKey, v);
           if (!isValid) {
             console.log(`❌ Validation failed: work type "${v}" for category "${categoryKey}"`);
@@ -141,20 +117,19 @@ const workItemSchema = new Schema({
           return false;
         }
       },
-      message: function(props) {
+      message: function (props) {
         const categoryKey = this.categoryKey || this.parent?.()?.key || 'unknown';
         return `"${props.value}" is not a valid work type for category "${categoryKey}".`;
-      }
-    }
+      },
+    },
   },
-  
   subtype: { type: String, default: '', trim: true },
   description: { type: String, default: '', trim: true },
   surfaces: { type: [surfaceSchema], default: [] },
   materialCost: { type: Number, default: 0, min: 0 },
   laborCost: { type: Number, default: 0, min: 0 },
   notes: { type: String, default: '', trim: true },
-  measurementType: { type: String, required: true, default: 'sqft' },
+  measurementType: { type: String, required: true, default: 'square-foot' },
   categoryKey: { type: String },
 });
 
@@ -164,7 +139,7 @@ const categorySchema = new Schema({
     type: String,
     required: [true, 'Category key is required.'],
     trim: true,
-    validate: [validateCategoryKey, 'Invalid category key.']
+    validate: [validateCategoryKey, 'Invalid category key.'],
   },
   workItems: { type: [workItemSchema], default: [] },
 });
@@ -174,23 +149,58 @@ const miscFeeSchema = new Schema({
   amount: { type: Number, required: true, min: 0 },
 });
 
-const paymentSchema = new Schema({
-  date: { type: Date, required: true },
-  amount: { type: Number, required: true, min: 0.01 },
-  method: {
-    type: String,
-    enum: ['Credit', 'Debit', 'Check', 'Cash', 'Zelle', 'Deposit'],
-    default: 'Cash',
+const paymentSchema = new Schema(
+  {
+    date: { type: Date, required: true },
+    amount: { type: Number, required: true, min: 0.01 },
+    // 'type' stores the canonical payment category (e.g. 'Deposit', 'One-Time', 'Installment')
+    paymentType: {
+      type: String,
+      enum: ['Deposit', 'One-Time', 'Installment', 'Other'],
+      default: 'One-Time',
+    },
+    method: {
+      type: String,
+      // FIX: Expanded enum to include all methods the frontend uses.
+      // Previously missing entries (Bank Transfer, PayPal, Venmo, CashApp, Other)
+      // caused Mongoose validation errors that silently prevented wasteEntries
+      // from being saved along with the rest of settings.
+      enum: [
+        'Credit', 'Debit', 'Check', 'Cash', 'Zelle',
+        'Deposit', 'Installment', 'Wire',
+        'Bank Transfer', 'PayPal', 'Venmo', 'CashApp', 'Other',
+      ],
+      default: 'Cash',
+    },
+    note: { type: String, default: '', trim: true },
+    isPaid: { type: Boolean, default: true },
+    status: { type: String, enum: ['Pending', 'Paid', 'Overdue'], default: 'Paid' },
   },
-  note: { type: String, default: '', trim: true },
-  isPaid: { type: Boolean, default: true },
-  status: { type: String, enum: ['Pending', 'Paid', 'Overdue'], default: 'Paid' },
-}, { timestamps: true });
+  // NOTE: timestamps REMOVED intentionally.
+  // { timestamps: true } adds createdAt/updatedAt to each payment subdocument.
+  // When the frontend re-sends saved payments, those timestamp fields arrive
+  // alongside extra fields like 'type' (not in schema). Together they can cause
+  // Mongoose subdocument casting to fail for the whole payments array,
+  // silently preventing wasteEntries (in the same settings object) from saving.
+  // The controller sanitizeSettings() is the single place that normalises payments.
+);
+
+// FIX #1: Add wasteEntrySchema and wasteEntries[] to settingsSchema.
+// Previously missing — Mongoose strict mode silently dropped this field on
+// every save, making calculateWasteCost() in projects.js always fall through
+// to the global wasteFactor fallback instead of using per-surface entries.
+const wasteEntrySchema = new Schema({
+  surfaceName: { type: String, default: '', trim: true },
+  surfaceCost: { type: Number, default: 0, min: 0 },
+  wasteFactor: { type: Number, default: 0, min: 0, max: 0.5 },
+});
 
 const settingsSchema = new Schema({
   taxRate: { type: Number, default: 0, min: 0, max: 1 },
   transportationFee: { type: Number, default: 0, min: 0 },
   wasteFactor: { type: Number, default: 0, min: 0, max: 1 },
+  // FIX #1: Per-surface waste entries — required by calculateWasteCost()
+  wasteEntries: { type: [wasteEntrySchema], default: [] },
   laborDiscount: { type: Number, default: 0, min: 0, max: 1 },
   markup: { type: Number, default: 0, min: 0, max: 10 },
   miscFees: { type: [miscFeeSchema], default: [] },
@@ -207,33 +217,37 @@ const customerInfoSchema = new Schema({
   zipCode: {
     type: String,
     required: [true, 'ZIP code is required.'],
-    match: [/^\d{5}$/, 'ZIP code must be 5 digits.']
+    match: [/^\d{5}$/, 'ZIP code must be 5 digits.'],
   },
   phone: {
     type: String,
     required: [true, 'Phone number is required.'],
     validate: {
       validator: (v) => /^\d{10,11}$/.test((v || '').replace(/\D/g, '')),
-      message: 'Phone number must be a valid 10 or 11-digit number.'
-    }
+      message: 'Phone number must be a valid 10 or 11-digit number.',
+    },
   },
   email: {
     type: String,
     required: [true, 'Email is required.'],
     match: [/^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/, 'Please enter a valid email address.'],
     lowercase: true,
-    trim: true
+    trim: true,
   },
   projectName: { type: String, required: [true, 'Project name is required.'], trim: true },
   type: { type: String, enum: ['Residential', 'Commercial'], default: 'Residential' },
-  paymentType: { type: String, enum: ['Credit', 'Debit', 'Check', 'Cash', 'Zelle', 'Deposit'], default: 'Cash' },
+  paymentType: {
+    type: String,
+    enum: ['Credit', 'Debit', 'Check', 'Cash', 'Zelle', 'Deposit'],
+    default: 'Cash',
+  },
   startDate: { type: Date, required: [true, 'Start date is required.'] },
   finishDate: {
     type: Date,
     validate: {
-      validator: function(v) { return !v || !this.startDate || v >= this.startDate; },
-      message: 'Finish date cannot be before the start date.'
-    }
+      validator: function (v) { return !v || !this.startDate || v >= this.startDate; },
+      message: 'Finish date cannot be before the start date.',
+    },
   },
   notes: { type: String, default: '', trim: true },
   addressNumber: String,
@@ -243,45 +257,52 @@ const customerInfoSchema = new Schema({
 });
 
 // --- Main Project Schema ---
-const projectSchema = new Schema({
-  userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
-  customerInfo: { type: customerInfoSchema, required: true },
-  categories: {
-    type: [categorySchema],
-    default: [],
-    validate: [(v) => Array.isArray(v) && v.length > 0, 'Project must have at least one category.']
-  },
-  settings: { type: settingsSchema, default: {} },
-  totals: {
-    materialCost: { type: Number, default: 0 },
-    laborCost: { type: Number, default: 0 },
-    laborCostBeforeDiscount: { type: Number, default: 0 },
-    laborDiscount: { type: Number, default: 0 },
-    wasteCost: { type: Number, default: 0 },
-    taxAmount: { type: Number, default: 0 },
-    markupAmount: { type: Number, default: 0 },
-    miscFeesTotal: { type: Number, default: 0 },
-    transportationFee: { type: Number, default: 0 },
-    subtotal: { type: Number, default: 0 },
-    total: { type: Number, default: 0 },
-  },
-  paymentDetails: {
-    totalPaid: { type: Number, default: 0 },
-    totalDue: { type: Number, default: 0 },
-    grandTotal: { type: Number, default: 0 },
-    depositAmount: { type: Number, default: 0 },
-  }
-}, {
-  timestamps: true,
-  validateBeforeSave: true
-});
 
-// ✅ ENHANCED: Pre-validation hook with better error handling
-projectSchema.pre('validate', function(next) {
+const projectSchema = new Schema(
+  {
+    userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    customerInfo: { type: customerInfoSchema, required: true },
+    categories: {
+      type: [categorySchema],
+      default: [],
+      validate: [
+        (v) => Array.isArray(v) && v.length > 0,
+        'Project must have at least one category.',
+      ],
+    },
+    settings: { type: settingsSchema, default: {} },
+    totals: {
+      materialCost: { type: Number, default: 0 },
+      laborCost: { type: Number, default: 0 },
+      laborCostBeforeDiscount: { type: Number, default: 0 },
+      laborDiscount: { type: Number, default: 0 },
+      wasteCost: { type: Number, default: 0 },
+      taxAmount: { type: Number, default: 0 },
+      markupAmount: { type: Number, default: 0 },
+      miscFeesTotal: { type: Number, default: 0 },
+      transportationFee: { type: Number, default: 0 },
+      subtotal: { type: Number, default: 0 },
+      total: { type: Number, default: 0 },
+    },
+    paymentDetails: {
+      totalPaid: { type: Number, default: 0 },
+      totalDue: { type: Number, default: 0 },
+      grandTotal: { type: Number, default: 0 },
+      depositAmount: { type: Number, default: 0 },
+    },
+  },
+  {
+    timestamps: true,
+    validateBeforeSave: true,
+  },
+);
+
+// --- Hooks ---
+
+projectSchema.pre('validate', function (next) {
   try {
     console.log('=== PRE-VALIDATE HOOK START ===');
-    
-    // Build full street address from components
+
     if (this.customerInfo) {
       const { addressNumber, direction, streetName, streetType } = this.customerInfo;
       if (addressNumber || streetName) {
@@ -292,52 +313,52 @@ projectSchema.pre('validate', function(next) {
       }
     }
 
-    // Process categories and work items
     if (Array.isArray(this.categories)) {
       this.categories.forEach((category, categoryIndex) => {
         if (!category || !Array.isArray(category.workItems)) {
           console.warn(`⚠️ Invalid category at index ${categoryIndex}:`, category);
           return;
         }
-        
+
         console.log(`📁 Processing category ${categoryIndex}: key="${category.key}", name="${category.name}"`);
-        
+
         category.workItems.forEach((item, itemIndex) => {
           if (!item) {
             console.warn(`⚠️ Invalid work item at category ${categoryIndex}, item ${itemIndex}`);
             return;
           }
 
-          // ✅ CRITICAL: Set categoryKey for validation
           item.categoryKey = category.key;
-          
-          // ✅ FIX #2: Validate custom work types have customWorkTypeName
+
           if (item.type === 'custom-work-type') {
             if (!item.customWorkTypeName || item.customWorkTypeName.trim() === '') {
-              console.error(`❌ Custom work item at category ${categoryIndex}, item ${itemIndex} missing customWorkTypeName`);
-              // The schema validator will catch this and return proper error
+              console.error(
+                `❌ Custom work item at category ${categoryIndex}, item ${itemIndex} missing customWorkTypeName`,
+              );
             } else {
-              console.log(`  ✅ Custom work type "${item.customWorkTypeName}" validated for categoryKey="${category.key}"`);
+              console.log(
+                `  ✅ Custom work type "${item.customWorkTypeName}" validated for categoryKey="${category.key}"`,
+              );
             }
           } else {
             console.log(`  ✅ Standard work type "${item.type}" for categoryKey="${category.key}"`);
           }
 
-          // Normalize measurement types
           item.measurementType = normalizeToCanonicalMeasurementType(item.measurementType);
-          
-          // Normalize surface measurement types
+
           if (Array.isArray(item.surfaces)) {
-            item.surfaces.forEach(surface => {
+            item.surfaces.forEach((surface) => {
               if (surface) {
-                surface.measurementType = normalizeToCanonicalMeasurementType(surface.measurementType);
+                surface.measurementType = normalizeToCanonicalMeasurementType(
+                  surface.measurementType,
+                );
               }
             });
           }
         });
       });
     }
-    
+
     console.log('=== PRE-VALIDATE HOOK END ===');
     next();
   } catch (error) {
@@ -346,18 +367,22 @@ projectSchema.pre('validate', function(next) {
   }
 });
 
-// ✅ NEW: Post-validation hook for additional checks
-projectSchema.post('validate', function(doc) {
+projectSchema.post('validate', function (doc) {
   console.log('✅ Project validation passed successfully');
-  
-  // Log summary of what was validated
   if (doc.categories) {
-    const totalWorkItems = doc.categories.reduce((sum, cat) => sum + (cat.workItems?.length || 0), 0);
+    const totalWorkItems = doc.categories.reduce(
+      (sum, cat) => sum + (cat.workItems?.length || 0),
+      0,
+    );
     const customWorkItems = doc.categories.reduce((sum, cat) => {
-      return sum + (cat.workItems?.filter(item => item.type === 'custom-work-type').length || 0);
+      return (
+        sum +
+        (cat.workItems?.filter((item) => item.type === 'custom-work-type').length || 0)
+      );
     }, 0);
-    
-    console.log(`📊 Validation summary: ${doc.categories.length} categories, ${totalWorkItems} work items (${customWorkItems} custom)`);
+    console.log(
+      `📊 Validation summary: ${doc.categories.length} categories, ${totalWorkItems} work items (${customWorkItems} custom)`,
+    );
   }
 });
 
@@ -368,29 +393,25 @@ projectSchema.index({ userId: 1, createdAt: -1 });
 
 // --- Static Methods ---
 
-/**
- * ✅ NEW: Validate and repair corrupted projects
- */
-projectSchema.statics.validateAndRepairProjects = async function() {
+projectSchema.statics.validateAndRepairProjects = async function () {
   console.log('🔧 Starting project validation and repair...');
-  
   const projects = await this.find({});
   const repairs = [];
-  
+
   for (const project of projects) {
     let needsRepair = false;
-    
-    project.categories.forEach((category, catIndex) => {
-      category.workItems.forEach((item, itemIndex) => {
-        // Check for custom work types without names
-        if (item.type === 'custom-work-type' && (!item.customWorkTypeName || !item.customWorkTypeName.trim())) {
-          console.warn(`⚠️ Found corrupted custom work type in project ${project._id}, category ${catIndex}, item ${itemIndex}`);
+    project.categories.forEach((category) => {
+      category.workItems.forEach((item) => {
+        if (
+          item.type === 'custom-work-type' &&
+          (!item.customWorkTypeName || !item.customWorkTypeName.trim())
+        ) {
           item.customWorkTypeName = 'Unnamed Custom Work';
           needsRepair = true;
         }
       });
     });
-    
+
     if (needsRepair) {
       try {
         await project.save({ validateBeforeSave: false });
@@ -401,17 +422,14 @@ projectSchema.statics.validateAndRepairProjects = async function() {
       }
     }
   }
-  
+
   console.log(`✅ Repair complete. Fixed ${repairs.length} projects.`);
   return { repaired: repairs.length, projectIds: repairs };
 };
 
-/**
- * Legacy: Migrate deposits to payment system
- */
-projectSchema.statics.migrateDepositToPayment = async function() {
+projectSchema.statics.migrateDepositToPayment = async function () {
   const projectsToMigrate = await this.find({
-    'settings.deposit': { $exists: true, $gt: 0 }
+    'settings.deposit': { $exists: true, $gt: 0 },
   });
 
   if (projectsToMigrate.length === 0) {
@@ -420,11 +438,16 @@ projectSchema.statics.migrateDepositToPayment = async function() {
   }
 
   const migrationPromises = projectsToMigrate.map(async (project) => {
-    const hasExistingDepositPayment = project.settings.payments.some(p => p.method === 'Deposit');
+    const hasExistingDepositPayment = project.settings.payments.some(
+      (p) => p.method === 'Deposit',
+    );
 
     if (!hasExistingDepositPayment) {
       project.settings.payments.push({
-        date: project.settings.depositDate || project.customerInfo.startDate || new Date(),
+        date:
+          project.settings.depositDate ||
+          project.customerInfo.startDate ||
+          new Date(),
         amount: project.settings.deposit,
         method: 'Deposit',
         note: 'Initial Deposit (migrated from old system)',
@@ -450,7 +473,6 @@ projectSchema.statics.migrateDepositToPayment = async function() {
   const results = await Promise.all(migrationPromises);
   const migratedCount = results.reduce((sum, result) => sum + result, 0);
   console.log(`Successfully migrated ${migratedCount} projects.`);
-
   return { migrated: migratedCount };
 };
 
