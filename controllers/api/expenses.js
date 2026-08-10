@@ -1,5 +1,6 @@
 // controllers/api/expenses.js
 const Expense = require('../../models/expense');
+const logger = require('../../utils/logger');
 
 // --- Helper Functions ---
 
@@ -143,7 +144,7 @@ async function create(req, res) {
       tags: req.body.tags || []
     };
     
-    console.log('➕ Creating expense:', {
+    logger.log('➕ Creating expense:', {
       userId: req.user._id,
       category: expenseData.category,
       amount: expenseData.amount,
@@ -152,11 +153,11 @@ async function create(req, res) {
     
     const expense = await Expense.create(expenseData);
     
-    console.log('✅ Expense created successfully:', expense._id);
+    logger.log('✅ Expense created successfully:', expense._id);
     res.status(201).json(expense);
     
   } catch (err) {
-    console.error('❌ Error creating expense:', err);
+    logger.error('❌ Error creating expense:', err);
     
     if (err.name === 'ValidationError') {
       const messages = Object.values(err.errors).map(e => e.message);
@@ -214,7 +215,7 @@ async function index(req, res) {
       query.category = category;
     }
     
-    console.log('🔍 Query:', JSON.stringify(query, null, 2));
+    logger.log('🔍 Query:', JSON.stringify(query, null, 2));
     
     // Execute query
     const queryBuilder = Expense.find(query)
@@ -223,11 +224,11 @@ async function index(req, res) {
     
     const expenses = await queryBuilder;
     
-    console.log(`✅ Retrieved ${expenses.length} expenses for user ${req.user._id}`);
+    logger.log(`✅ Retrieved ${expenses.length} expenses for user ${req.user._id}`);
     res.json(expenses);
     
   } catch (err) {
-    console.error('❌ Error fetching expenses:', err);
+    logger.error('❌ Error fetching expenses:', err);
     res.status(500).json({ 
       error: 'Server error retrieving expenses.',
       details: err.message 
@@ -245,7 +246,7 @@ async function dashboard(req, res) {
     const startOfYear = new Date(currentYear, 0, 1, 0, 0, 0, 0);
     const endOfYear = new Date(currentYear, 11, 31, 23, 59, 59, 999);
     
-    console.log('📊 Dashboard query:', {
+    logger.log('📊 Dashboard query:', {
       userId: req.user._id,
       dateRange: { start: startOfYear, end: endOfYear }
     });
@@ -255,7 +256,7 @@ async function dashboard(req, res) {
       date: { $gte: startOfYear, $lte: endOfYear }
     }).sort('-date');
     
-    console.log(`📈 Found ${expenses.length} expenses for dashboard`);
+    logger.log(`📈 Found ${expenses.length} expenses for dashboard`);
     
     // Calculate period totals
     const periodTotals = calculatePeriodTotals(expenses);
@@ -263,7 +264,7 @@ async function dashboard(req, res) {
     // Calculate category breakdown
     const { breakdown, totalSpending } = calculateCategoryBreakdown(expenses);
     
-    console.log(`✅ Dashboard data generated:`, {
+    logger.log(`✅ Dashboard data generated:`, {
       userId: req.user._id,
       periodTotals,
       totalSpending,
@@ -278,7 +279,7 @@ async function dashboard(req, res) {
     });
     
   } catch (err) {
-    console.error('❌ Error fetching dashboard:', err);
+    logger.error('❌ Error fetching dashboard:', err);
     res.status(500).json({ 
       error: 'Server error retrieving dashboard data.',
       details: err.message 
@@ -297,15 +298,15 @@ async function show(req, res) {
     });
     
     if (!expense) {
-      console.warn(`⚠️ Expense not found: ${req.params.id}`);
+      logger.warn(`⚠️ Expense not found: ${req.params.id}`);
       return res.status(404).json({ error: 'Expense not found.' });
     }
     
-    console.log(`✅ Retrieved expense: ${expense._id}`);
+    logger.log(`✅ Retrieved expense: ${expense._id}`);
     res.json(expense);
     
   } catch (err) {
-    console.error(`❌ Error fetching expense ${req.params.id}:`, err);
+    logger.error(`❌ Error fetching expense ${req.params.id}:`, err);
     res.status(500).json({ 
       error: 'Server error retrieving expense.',
       details: err.message 
@@ -318,7 +319,7 @@ async function show(req, res) {
  */
 async function update(req, res) {
   try {
-    console.log(`🔄 Updating expense: ${req.params.id}`);
+    logger.log(`🔄 Updating expense: ${req.params.id}`);
     
     // Prepare update data
     const updateData = {};
@@ -345,17 +346,17 @@ async function update(req, res) {
     );
     
     if (!expense) {
-      console.error(`❌ Expense not found or unauthorized: ${req.params.id}`);
+      logger.error(`❌ Expense not found or unauthorized: ${req.params.id}`);
       return res.status(404).json({ 
         error: 'Expense not found or you do not have permission to edit it.' 
       });
     }
     
-    console.log(`✅ Expense updated successfully: ${expense._id}`);
+    logger.log(`✅ Expense updated successfully: ${expense._id}`);
     res.json(expense);
     
   } catch (err) {
-    console.error(`❌ Error updating expense ${req.params.id}:`, err);
+    logger.error(`❌ Error updating expense ${req.params.id}:`, err);
     
     if (err.name === 'ValidationError') {
       const messages = Object.values(err.errors).map(e => e.message);
@@ -384,15 +385,15 @@ async function deleteExpense(req, res) {
     });
     
     if (!expense) {
-      console.warn(`⚠️ Expense not found for deletion: ${req.params.id}`);
+      logger.warn(`⚠️ Expense not found for deletion: ${req.params.id}`);
       return res.status(404).json({ error: 'Expense not found.' });
     }
     
-    console.log(`✅ Expense deleted successfully: ${req.params.id}`);
+    logger.log(`✅ Expense deleted successfully: ${req.params.id}`);
     res.status(200).json({ message: 'Expense deleted successfully.' });
     
   } catch (err) {
-    console.error(`❌ Error deleting expense ${req.params.id}:`, err);
+    logger.error(`❌ Error deleting expense ${req.params.id}:`, err);
     res.status(500).json({ 
       error: 'Server error deleting expense.',
       details: err.message 
@@ -418,14 +419,14 @@ async function bulkDelete(req, res) {
       userId: req.user._id
     });
     
-    console.log(`✅ Bulk deleted ${result.deletedCount} expenses`);
+    logger.log(`✅ Bulk deleted ${result.deletedCount} expenses`);
     res.json({ 
       message: `Successfully deleted ${result.deletedCount} expense(s).`,
       deletedCount: result.deletedCount
     });
     
   } catch (err) {
-    console.error('❌ Error bulk deleting expenses:', err);
+    logger.error('❌ Error bulk deleting expenses:', err);
     res.status(500).json({ 
       error: 'Server error deleting expenses.',
       details: err.message 
@@ -454,11 +455,11 @@ async function monthlyReport(req, res) {
       };
     });
     
-    console.log(`✅ Generated monthly report for ${targetYear}`);
+    logger.log(`✅ Generated monthly report for ${targetYear}`);
     res.json({ year: targetYear, months: fullReport });
     
   } catch (err) {
-    console.error('❌ Error generating monthly report:', err);
+    logger.error('❌ Error generating monthly report:', err);
     res.status(500).json({ 
       error: 'Server error generating report.',
       details: err.message 
@@ -478,7 +479,7 @@ async function categoryReport(req, res) {
     
     const summary = await Expense.getSummary(req.user._id, start, end);
     
-    console.log(`✅ Generated category report from ${start.toISOString()} to ${end.toISOString()}`);
+    logger.log(`✅ Generated category report from ${start.toISOString()} to ${end.toISOString()}`);
     res.json({ 
       startDate: start,
       endDate: end,
@@ -486,7 +487,7 @@ async function categoryReport(req, res) {
     });
     
   } catch (err) {
-    console.error('❌ Error generating category report:', err);
+    logger.error('❌ Error generating category report:', err);
     res.status(500).json({ 
       error: 'Server error generating report.',
       details: err.message 
@@ -505,11 +506,11 @@ async function vendorsReport(req, res) {
       limit ? parseInt(limit) : 10
     );
     
-    console.log(`✅ Generated top vendors report`);
+    logger.log(`✅ Generated top vendors report`);
     res.json({ vendors: topVendors });
     
   } catch (err) {
-    console.error('❌ Error generating vendors report:', err);
+    logger.error('❌ Error generating vendors report:', err);
     res.status(500).json({ 
       error: 'Server error generating report.',
       details: err.message 
@@ -540,14 +541,14 @@ async function importCSV(req, res) {
       ordered: false // Continue on errors
     });
     
-    console.log(`✅ Imported ${result.length} expenses`);
+    logger.log(`✅ Imported ${result.length} expenses`);
     res.status(201).json({ 
       message: `Successfully imported ${result.length} expense(s).`,
       importedCount: result.length
     });
     
   } catch (err) {
-    console.error('❌ Error importing expenses:', err);
+    logger.error('❌ Error importing expenses:', err);
     
     // Handle partial success
     if (err.writeErrors) {

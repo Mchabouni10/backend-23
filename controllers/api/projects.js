@@ -1,19 +1,17 @@
 // controllers/api/projects.js
-
 const Project = require('../../models/project');
+const logger = require('../../utils/logger');
 
 // --- Helper Functions ---
-
 function getUnits(item) {
   if (!item || !Array.isArray(item.surfaces)) return 0;
-
   return item.surfaces.reduce((sum, surface) => {
     if (!surface) return sum;
     const type = surface.measurementType || item.measurementType;
     let units = 0;
     switch (type) {
       case 'square-foot':
-      case 'sqft': // legacy — kept for backward compat with old DB records
+      case 'sqft':
         units = parseFloat(surface.sqft) || 0;
         break;
       case 'linear-foot':
@@ -23,7 +21,7 @@ function getUnits(item) {
         units = parseInt(surface.units) || 0;
         break;
       default:
-        console.warn(`⚠️ getUnits: Unknown measurement type "${type}" in surface.`);
+        logger.warn(`⚠️ getUnits: Unknown measurement type "${type}" in surface.`);
         break;
     }
     return sum + units;
@@ -31,28 +29,39 @@ function getUnits(item) {
 }
 
 function parsePayments(payments = []) {
-  if (!Array.isArray(payments)) return { totalPaid: 0, depositAmount: 0 };
-
+  if (!Array.isArray(payments)) return { totalPaid: 0, depositAmount: 0, totalRefunded: 0 };
   let totalPaid = 0;
   let depositAmount = 0;
-
+  let totalRefunded = 0;
   payments.forEach(p => {
-    if (p && p.isPaid) {
-      const amount = Number(p.amount) || 0;
+    if (!p) return;
+    const amount = Number(p.amount) || 0;
+    const paymentType = p.type || p.paymentType;
+
+    if (paymentType === 'Refund') {
+      totalRefunded += amount;
+      return;
+    }
+
+    if (p.isPaid) {
       totalPaid += amount;
-      if (p.paymentType === 'Deposit' || p.type === 'Deposit' || p.method === 'Deposit') {
-        depositAmount += amount;
-      }
+    }
+
+    // Check both type and paymentType for Deposit
+    if (p.isPaid && (paymentType === 'Deposit' || p.method === 'Deposit')) {
+      depositAmount += amount;
     }
   });
-
-  return { totalPaid, depositAmount };
+  return {
+    totalPaid: Math.max(0, Number((totalPaid - totalRefunded).toFixed(2))),
+    depositAmount: Number(depositAmount.toFixed(2)),
+    totalRefunded: Number(totalRefunded.toFixed(2)),
+  };
 }
 
 function calculateWasteCost(materialCost, settings) {
   const s = settings || {};
   const wasteEntries = Array.isArray(s.wasteEntries) ? s.wasteEntries : [];
-
   if (wasteEntries.length > 0) {
     return wasteEntries.reduce((sum, entry) => {
       const surfaceCost = Math.max(0, Number(entry.surfaceCost) || 0);
@@ -60,7 +69,6 @@ function calculateWasteCost(materialCost, settings) {
       return sum + surfaceCost * factor;
     }, 0);
   }
-
   const wasteFactorRate = Math.max(0, Math.min(0.5, s.wasteFactor || 0));
   return materialCost * wasteFactorRate;
 }
@@ -68,7 +76,6 @@ function calculateWasteCost(materialCost, settings) {
 function calculateCostsAndTotals(categories, settings) {
   let materialCost = 0;
   let laborCostBeforeDiscount = 0;
-
   (categories || []).forEach(category => {
     (category.workItems || []).forEach(item => {
       const units = getUnits(item);
@@ -78,25 +85,23 @@ function calculateCostsAndTotals(categories, settings) {
   });
 
   const s = settings || {};
-
   const laborDiscountRate = s.laborDiscount || 0;
   const laborDiscountAmount = laborCostBeforeDiscount * laborDiscountRate;
   const laborCost = laborCostBeforeDiscount - laborDiscountAmount;
-
+  
   const wasteCost = calculateWasteCost(materialCost, s);
   const materialCostWithWaste = materialCost + wasteCost;
-
+  
   const subtotal = materialCostWithWaste + laborCost;
-
   const markupRate = s.markup || 0;
   const markupAmount = subtotal * markupRate;
-
+  
   const taxRate = s.taxRate || 0;
   const taxAmount = subtotal * taxRate;
-
+  
   const miscFeesTotal = (s.miscFees || []).reduce((sum, f) => sum + (Number(f.amount) || 0), 0);
   const transportationFee = Number(s.transportationFee) || 0;
-
+  
   const grandTotal = subtotal + markupAmount + taxAmount + miscFeesTotal + transportationFee;
 
   return {
@@ -116,18 +121,16 @@ function calculateCostsAndTotals(categories, settings) {
 
 function ensureCategoryKeys(categories) {
   if (!Array.isArray(categories)) {
-    console.warn('⚠️ ensureCategoryKeys: categories is not an array');
+    logger.warn('⚠️ ensureCategoryKeys: categories is not an array');
     return [];
   }
-
   return categories.map((category, catIndex) => {
     if (!category || typeof category !== 'object') {
-      console.warn(`⚠️ ensureCategoryKeys: Invalid category at index ${catIndex}`);
+      logger.warn(`⚠️ ensureCategoryKeys: Invalid category at index ${catIndex}`);
       return category;
     }
-
     if (!category.key || !category.name) {
-      console.error(`❌ ensureCategoryKeys: Category at index ${catIndex} missing key or name`, category);
+      logger.error(`❌ ensureCategoryKeys: Category at index ${catIndex} missing key or name`, category);
       throw new Error(`Category at index ${catIndex} is missing required fields (key or name)`);
     }
 
@@ -152,13 +155,27 @@ function ensureCategoryKeys(categories) {
         }
       }
 
+      const preservedSurfaces = Array.isArray(item.surfaces)
+        ? item.surfaces.map(surface => ({
+            ...surface,
+            id: surface.id || '',
+            measurementType: surface.measurementType || item.measurementType || 'square-foot',
+            width: typeof surface.width === 'number' ? surface.width : 0,
+            height: typeof surface.height === 'number' ? surface.height : 0,
+            sqft: typeof surface.sqft === 'number' ? surface.sqft : 0,
+            linearFt: typeof surface.linearFt === 'number' ? surface.linearFt : 0,
+            units: typeof surface.units === 'number' ? surface.units : 0,
+            manualSqft: Boolean(surface.manualSqft),
+          }))
+        : [];
+
       const fixedItem = {
         name: item.name || 'Unnamed Work Item',
         customWorkTypeName: item.customWorkTypeName || '',
         type: item.type.trim(),
         subtype: item.subtype || '',
         description: item.description || '',
-        surfaces: Array.isArray(item.surfaces) ? item.surfaces : [],
+        surfaces: preservedSurfaces,
         materialCost: Number(item.materialCost) || 0,
         laborCost: Number(item.laborCost) || 0,
         notes: item.notes || '',
@@ -170,7 +187,7 @@ function ensureCategoryKeys(categories) {
     });
 
     if (skippedItems.length > 0) {
-      console.warn(`⚠️ Category "${category.name}" (${category.key}): Skipped ${skippedItems.length} invalid items`);
+      logger.warn(`⚠️ Category "${category.name}" (${category.key}): Skipped ${skippedItems.length} invalid items`);
     }
 
     return {
@@ -181,26 +198,26 @@ function ensureCategoryKeys(categories) {
   }).filter(() => true);
 }
 
-// ─── FIX: Sanitize settings before saving ────────────────────────────────────
-// Strips any fields NOT in the schema and ensures wasteEntries are clean.
-// This prevents Mongoose strict mode from silently dropping valid fields
-// due to casting errors caused by unknown/extra fields in the same object.
+// ─── FIXED: Sanitize settings with complete payment preservation ────────────────────
 function sanitizeSettings(raw) {
   const s = raw || {};
-
-  // ── wasteEntries: keep only valid entries ──────────────────────────────────
+  
+  // ── wasteEntries ──────────────────────────────────────────────────────────
   const wasteEntries = Array.isArray(s.wasteEntries)
     ? s.wasteEntries
         .filter(e => e && typeof e === 'object')
         .map(e => ({
           surfaceName: String(e.surfaceName || '').trim(),
+          surfaceId: String(e.surfaceId || '').trim(),
           surfaceCost: Math.max(0, Number(e.surfaceCost) || 0),
-          // CRITICAL: wasteFactor must be 0–0.5 per schema max
+          measurementType: e.measurementType ? String(e.measurementType).trim() : null,
+          wasteable: typeof e.wasteable === 'boolean' ? e.wasteable : null,
           wasteFactor: Math.max(0, Math.min(0.5, Number(e.wasteFactor) || 0)),
+          manualOverride: Boolean(e.manualOverride),
         }))
     : [];
 
-  // ── miscFees: keep only valid entries ─────────────────────────────────────
+  // ── miscFees ──────────────────────────────────────────────────────────────
   const miscFees = Array.isArray(s.miscFees)
     ? s.miscFees
         .filter(f => f && f.name && typeof f.amount === 'number')
@@ -210,44 +227,111 @@ function sanitizeSettings(raw) {
         }))
     : [];
 
-  // ── payments: strip unknown fields that can cause Mongoose cast failures ───
-  // A cast failure on ANY payment causes Mongoose to abort the ENTIRE
-  // settings subdocument update, silently dropping wasteEntries too.
+  // ── payments: PRESERVE ALL FIELDS including type ────────────────────────
   const VALID_METHODS = new Set([
     'Credit', 'Debit', 'Check', 'Cash', 'Zelle',
     'Deposit', 'Installment', 'Wire',
     'Bank Transfer', 'PayPal', 'Venmo', 'CashApp', 'Other',
   ]);
-  const VALID_PAYMENT_TYPES = new Set(['Deposit', 'One-Time', 'Installment', 'Other']);
+  const LEGACY_METHOD_MAP = {
+    'Credit Card': 'Credit',
+    'Debit Card': 'Debit',
+  };
+  const VALID_PAYMENT_TYPES = new Set(['Deposit', 'Installment', 'Refund', 'Other']);
   const VALID_STATUSES = new Set(['Pending', 'Paid', 'Overdue']);
 
   const payments = Array.isArray(s.payments)
     ? s.payments
-        .filter(p => p && p.date && p.amount > 0)
+        .filter(p => p && p.date && p.amount >= 0)
         .map(p => {
-          // Detect deposit from any field the frontend might use
-          const isDeposit =
-            p.paymentType === 'Deposit' ||
-            p.type === 'Deposit' ||
-            p.method === 'Deposit';
+          // ─── CRITICAL: Normalize and preserve the type exactly ──────────────────
+          let rawType = (typeof p.type === 'string') ? p.type.trim() : '';
+          let resolvedType = VALID_PAYMENT_TYPES.has(rawType) ? rawType : null;
+          
+          if (!resolvedType) {
+            let rawPaymentType = (typeof p.paymentType === 'string') ? p.paymentType.trim() : '';
+            if (VALID_PAYMENT_TYPES.has(rawPaymentType)) {
+               resolvedType = rawPaymentType;
+            } else if (p.note && /installment/i.test(p.note)) {
+              resolvedType = 'Installment';
+            } else if (p.method === 'Deposit') {
+              resolvedType = 'Deposit';
+            } else {
+               resolvedType = 'Installment';
+            }
+          }
 
-          const method = VALID_METHODS.has(p.method) ? p.method : 'Cash';
-          const paymentType = VALID_PAYMENT_TYPES.has(p.paymentType)
-            ? p.paymentType
-            : isDeposit ? 'Deposit' : 'One-Time';
-          const status = VALID_STATUSES.has(p.status) ? p.status : 'Paid';
+          // Clean up the method
+          const rawMethod = (typeof p.method === 'string') ? p.method.trim() : '';
+          const method = VALID_METHODS.has(rawMethod)
+            ? rawMethod
+            : VALID_METHODS.has(LEGACY_METHOD_MAP[rawMethod])
+              ? LEGACY_METHOD_MAP[rawMethod]
+              : 'Cash';
+          
+          const isPaid = Boolean(p.isPaid);
+          const rawStatus = (typeof p.status === 'string') ? p.status.trim() : '';
+          let status = VALID_STATUSES.has(rawStatus) ? rawStatus : null;
+          if (resolvedType === 'Refund') {
+            status = 'Paid';
+          } else if (isPaid) {
+            status = 'Paid';
+          } else if (!status || status === 'Paid') {
+            status = new Date(p.date) < new Date() ? 'Overdue' : 'Pending';
+          }
 
+          // ─── Build the clean payment object ──────────────────────────────
           const clean = {
             date: new Date(p.date),
             amount: Number(p.amount),
-            method,
-            paymentType,
+            method: method,
+            type: resolvedType,
+            paymentType: resolvedType,
             note: String(p.note || '').trim(),
-            isPaid: Boolean(p.isPaid),
-            status,
+            isPaid,
+            status: status,
           };
-          // Preserve _id if present so Mongoose doesn't create duplicates
+          
+          // ─── PRESERVE ALL additional fields ──────────────────────────────
+          if (p.paidMethod !== undefined) {
+            clean.paidMethod = String(p.paidMethod || '').trim();
+          }
+          
+          if (p.manuallyAdjusted !== undefined && p.manuallyAdjusted !== null) {
+            clean.manuallyAdjusted = Boolean(p.manuallyAdjusted);
+          }
+          
+          if (p.paidAt) clean.paidAt = new Date(p.paidAt);
+          if (p.createdAt) clean.createdAt = new Date(p.createdAt);
+          if (p.updatedAt) clean.updatedAt = new Date(p.updatedAt);
+          
+          // ─── CRITICAL: Always preserve installment numbers ─────────────
+          if (p.installmentNumber !== undefined && p.installmentNumber !== null) {
+            clean.installmentNumber = Number(p.installmentNumber);
+          } else if (resolvedType === 'Installment') {
+            const match = p.note ? p.note.match(/Installment\s*(\d+)\s*of\s*(\d+)/i) : null;
+            if (match) {
+              clean.installmentNumber = parseInt(match[1], 10);
+              clean.totalInstallments = parseInt(match[2], 10);
+            }
+          }
+          
+          if (p.totalInstallments !== undefined && p.totalInstallments !== null) {
+            clean.totalInstallments = Number(p.totalInstallments);
+          }
+          
+          // ─── Preserve IDs ────────────────────────────────────────────────
           if (p._id) clean._id = p._id;
+          if (p.id) clean.id = String(p.id);
+          
+          // ─── Preserve any other fields that might exist ──────────────────
+          const extraFields = ['paymentNumber', 'reference', 'transactionId', 'checkNumber'];
+          extraFields.forEach(field => {
+            if (p[field] !== undefined && p[field] !== null) {
+              clean[field] = p[field];
+            }
+          });
+          
           return clean;
         })
     : [];
@@ -264,17 +348,11 @@ function sanitizeSettings(raw) {
   };
 }
 
+// ─── CREATE / UPDATE ────────────────────────────────────────────────────────
 async function createOrUpdate(req, res, isUpdate = false) {
   try {
     const { customerInfo, categories = [], settings = {} } = req.body;
-
-    // ── Diagnostic logging — confirms what the server actually receives ──────
-    console.log(`\n📥 [${isUpdate ? 'UPDATE' : 'CREATE'}] Received settings:`);
-    console.log(`   wasteEntries count : ${Array.isArray(settings.wasteEntries) ? settings.wasteEntries.length : 'NOT AN ARRAY'}`);
-    console.log(`   wasteEntries data  :`, JSON.stringify(settings.wasteEntries));
-    console.log(`   payments count     : ${Array.isArray(settings.payments) ? settings.payments.length : 'NOT AN ARRAY'}`);
-    console.log(`   miscFees count     : ${Array.isArray(settings.miscFees) ? settings.miscFees.length : 'NOT AN ARRAY'}`);
-
+    
     if (!Array.isArray(categories) || categories.length === 0) {
       return res.status(400).json({
         error: 'Validation failed.',
@@ -306,47 +384,30 @@ async function createOrUpdate(req, res, isUpdate = false) {
       });
     }
 
-    // ── FIX: Sanitize settings before any DB operation ───────────────────────
-    // This ensures no unknown fields can cause Mongoose to abort the cast
-    // of the settings subdocument, which would silently drop wasteEntries.
     const cleanSettings = sanitizeSettings(settings);
-
-    console.log(`\n🧹 Sanitized settings:`);
-    console.log(`   wasteEntries count : ${cleanSettings.wasteEntries.length}`);
-    console.log(`   wasteEntries data  :`, JSON.stringify(cleanSettings.wasteEntries));
-
     const costs = calculateCostsAndTotals(fixedCategories, cleanSettings);
     const grandTotal = costs.total;
 
+    // Parse payments from the cleaned settings
     const { totalPaid, depositAmount } = parsePayments(cleanSettings.payments);
     const totalDue = Math.max(0, grandTotal - totalPaid);
 
     let project;
 
     if (isUpdate) {
-      // ── FIX: Use explicit dot-notation $set for each settings field ─────────
-      // Replacing the entire `settings` object with { $set: { settings: {...} } }
-      // forces Mongoose to cast ALL fields at once. If any field fails casting
-      // (e.g. an invalid payment field), the WHOLE settings object is dropped.
-      //
-      // Dot-notation sets each field independently, so a bad payment can't
-      // silently take wasteEntries down with it.
       const updatePayload = {
         $set: {
           userId:           req.user._id,
           customerInfo,
           categories:       fixedCategories,
-          // Top-level settings fields — dot-notation keeps them independent
           'settings.taxRate':           cleanSettings.taxRate,
           'settings.transportationFee': cleanSettings.transportationFee,
           'settings.wasteFactor':       cleanSettings.wasteFactor,
           'settings.laborDiscount':     cleanSettings.laborDiscount,
           'settings.markup':            cleanSettings.markup,
-          // Arrays — set each explicitly so a problem in one can't kill another
           'settings.wasteEntries':      cleanSettings.wasteEntries,
           'settings.miscFees':          cleanSettings.miscFees,
           'settings.payments':          cleanSettings.payments,
-          // Computed totals
           'totals.materialCost':        costs.materialCost,
           'totals.laborCost':           costs.laborCost,
           'totals.laborCostBeforeDiscount': costs.laborCostBeforeDiscount,
@@ -358,16 +419,12 @@ async function createOrUpdate(req, res, isUpdate = false) {
           'totals.transportationFee':   costs.transportationFee,
           'totals.subtotal':            costs.subtotal,
           'totals.total':               costs.total,
-          // Payment summary
           'paymentDetails.grandTotal':  grandTotal,
           'paymentDetails.totalPaid':   totalPaid,
           'paymentDetails.totalDue':    totalDue,
           'paymentDetails.depositAmount': depositAmount,
         }
       };
-
-      console.log(`\n💾 Sending to MongoDB:`);
-      console.log(`   settings.wasteEntries:`, JSON.stringify(updatePayload.$set['settings.wasteEntries']));
 
       project = await Project.findOneAndUpdate(
         { _id: req.params.id, userId: req.user._id },
@@ -379,10 +436,10 @@ async function createOrUpdate(req, res, isUpdate = false) {
         return res.status(404).json({ error: 'Project not found or you do not have permission to edit it.' });
       }
 
-      console.log(`\n✅ Saved to DB — wasteEntries:`, JSON.stringify(project.settings.wasteEntries));
+      // ✅ FIX: Changed logger.info to logger.log and fixed the template literal spacing
+      logger.log(`✅ Project updated: ${project._id}, payments: ${cleanSettings.payments.length}`);
 
     } else {
-      // CREATE — use normal document save (pre-validate hook runs here)
       const projectData = {
         userId: req.user._id,
         customerInfo,
@@ -399,15 +456,15 @@ async function createOrUpdate(req, res, isUpdate = false) {
 
       project = new Project(projectData);
       await project.save();
-
-      console.log(`\n✅ Created — wasteEntries:`, JSON.stringify(project.settings.wasteEntries));
+      
+      // ✅ FIX: Changed logger.info to logger.log
+      logger.log(`✅ Project created: ${project._id}, payments: ${cleanSettings.payments.length}`);
     }
 
     res.status(isUpdate ? 200 : 201).json(project);
-
   } catch (err) {
-    console.error(`❌ Error in ${isUpdate ? 'update' : 'create'} operation:`, err);
-
+    logger.error(`❌ Error in ${isUpdate ? 'update' : 'create'} operation:`, err);
+    
     if (err.name === 'ValidationError') {
       const messages = Object.values(err.errors).map(e => e.message);
       return res.status(400).json({
@@ -417,7 +474,7 @@ async function createOrUpdate(req, res, isUpdate = false) {
         fullError: err.message
       });
     }
-
+    
     if (err.name === 'CastError') {
       return res.status(400).json({ error: 'Invalid data format.', details: [err.message], paths: [err.path] });
     }
@@ -450,7 +507,7 @@ async function show(req, res) {
   try {
     const project = await Project.findOne({ _id: req.params.id, userId: req.user._id });
     if (!project) return res.status(404).json({ error: 'Project not found.' });
-
+    
     let needsRepair = false;
     project.categories.forEach((category) => {
       category.workItems.forEach((item) => {
@@ -465,7 +522,7 @@ async function show(req, res) {
       try {
         await project.save({ validateBeforeSave: false });
       } catch (saveErr) {
-        console.error(`❌ Failed to auto-repair project ${project._id}:`, saveErr.message);
+        logger.error(`❌ Failed to auto-repair project ${project._id}:`, saveErr.message);
       }
     }
 

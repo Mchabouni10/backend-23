@@ -3,8 +3,7 @@ const express = require('express');
 const router = express.Router();
 const expensesCtrl = require('../../controllers/api/expenses');
 
-// Require token middleware for all routes
-router.use(require('../../config/checkToken'));
+// Auth (checkToken + ensureLoggedIn) is applied globally in server.js.
 
 // --- Dashboard (MUST come before /:id to avoid conflict) ---
 router.get('/dashboard', expensesCtrl.dashboard);

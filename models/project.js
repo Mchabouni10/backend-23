@@ -5,51 +5,16 @@ const Schema = mongoose.Schema;
 
 // --- Constants & Helper Functions ---
 
-const VALID_WORK_TYPES = {
-  kitchen: ['kitchen-flooring', 'kitchen-tiles', 'kitchen-backsplash', 'kitchen-ceiling', 'kitchen-walls', 'kitchen-countertop-surface', 'kitchen-cabinet-doors', 'kitchen-island-top', 'kitchen-cabinets', 'kitchen-countertops', 'kitchen-trim', 'kitchen-island-edge', 'kitchen-crown-molding', 'kitchen-toe-kicks', 'kitchen-cabinet-lighting', 'kitchen-under-cabinet-strips', 'kitchen-sink', 'kitchen-faucet', 'kitchen-lighting', 'kitchen-appliance', 'kitchen-hood', 'kitchen-garbage-disposal', 'kitchen-cabinet-hardware', 'kitchen-outlet', 'kitchen-switch', 'kitchen-pantry-organizer'],
-  bathroom: ['bathroom-flooring', 'bathroom-tiles', 'bathroom-shower-tiles', 'bathroom-walls', 'bathroom-ceiling', 'bathroom-shower-floor', 'bathroom-vanity-top', 'bathroom-mirror-wall', 'bathroom-vanity', 'bathroom-trim', 'bathroom-wainscoting', 'bathroom-shower-trim', 'bathroom-tub-surround', 'bathroom-chair-rail', 'bathroom-towel-bars', 'bathroom-grab-bars', 'bathroom-faucet', 'bathroom-shower-faucet', 'bathroom-fan', 'bathroom-towel-warmer', 'bathroom-toilet', 'bathroom-mirror', 'bathroom-lighting', 'bathroom-bathtub', 'bathroom-shower-ledge', 'bathroom-medicine-cabinet', 'bathroom-outlet', 'bathroom-shower-door'],
-  'living-room': ['living-room-flooring', 'living-room-walls', 'living-room-ceiling', 'living-room-accent-wall', 'living-room-fireplace-surround', 'living-room-built-in-shelving', 'living-room-window-treatments', 'living-room-trim', 'living-room-crown-molding', 'living-room-wainscoting', 'living-room-chair-rail', 'living-room-baseboard', 'living-room-picture-ledge', 'living-room-mantle', 'living-room-cable-management', 'living-room-lighting', 'living-room-fireplace', 'living-room-ceiling-fan', 'living-room-tv-mount', 'living-room-outlet', 'living-room-switch', 'living-room-window', 'living-room-door', 'living-room-built-in-cabinet', 'living-room-speaker'],
-  bedroom: ['bedroom-flooring', 'bedroom-walls', 'bedroom-ceiling', 'bedroom-closet-interior', 'bedroom-accent-wall', 'bedroom-window-treatments', 'bedroom-headboard-wall', 'bedroom-trim', 'bedroom-closet-shelves', 'bedroom-crown-molding', 'bedroom-baseboard', 'bedroom-chair-rail', 'bedroom-closet-rods', 'bedroom-window-sills', 'bedroom-built-in-bench', 'bedroom-lighting', 'bedroom-ceiling-fan', 'bedroom-window', 'bedroom-closet-organizer', 'bedroom-door', 'bedroom-outlet', 'bedroom-switch', 'bedroom-closet-door', 'bedroom-built-in-drawer', 'bedroom-mirror'],
-  exterior: ['exterior-deck', 'exterior-siding', 'exterior-painting', 'exterior-roofing', 'exterior-patio', 'exterior-driveway', 'exterior-walkway', 'exterior-retaining-wall', 'exterior-fencing', 'exterior-trim', 'exterior-gutters', 'exterior-deck-railing', 'exterior-soffit', 'exterior-fascia', 'exterior-foundation-trim', 'exterior-landscape-edging', 'exterior-door', 'exterior-window', 'exterior-lighting', 'exterior-mailbox', 'exterior-gate', 'exterior-outlet', 'exterior-shutter', 'exterior-downspout', 'exterior-vent', 'exterior-house-number'],
-  garage: ['garage-flooring', 'garage-walls', 'garage-ceiling', 'garage-door-opener', 'garage-storage-shelves', 'garage-workbench', 'garage-cabinets', 'garage-lighting', 'garage-outlet', 'garage-insulation', 'garage-epoxy-coating', 'garage-door', 'garage-window', 'garage-ventilation', 'garage-wall-organizer', 'garage-ceiling-storage', 'garage-bike-rack', 'garage-tool-storage'],
-  electricity: ['electricity-wiring', 'electricity-panel-upgrade', 'electricity-circuit-breaker', 'electricity-outlet-installation', 'electricity-lighting-fixture', 'electricity-ceiling-fan-installation', 'electricity-switch-installation', 'electricity-surge-protector', 'electricity-grounding-system', 'electricity-smoke-detector-installation', 'electricity-smart-home-integration', 'electricity-exterior-lighting', 'electricity-appliance-circuit'],
-  plumbing: ['plumbing-pipe-installation', 'plumbing-faucet-installation', 'plumbing-toilet-installation', 'plumbing-shower-installation', 'plumbing-sink-installation', 'plumbing-water-heater', 'plumbing-drain-cleaning', 'plumbing-leak-repair', 'plumbing-valve-replacement', 'plumbing-sump-pump', 'plumbing-water-line', 'plumbing-sewer-line'],
-  hallway: ['hallway-flooring', 'hallway-walls', 'hallway-ceiling', 'hallway-lighting', 'hallway-trim', 'hallway-baseboard', 'hallway-crown-molding', 'hallway-wainscoting', 'hallway-door', 'hallway-runner', 'hallway-wall-art-frame', 'hallway-console-table', 'hallway-mirror'],
-  general: ['general-drywall', 'general-painting', 'general-flooring', 'general-ceiling', 'general-wall-repair', 'general-insulation', 'general-paneling', 'general-wallpaper', 'general-trim', 'general-molding', 'general-chair-rail', 'general-baseboard', 'general-door-frame', 'general-window-frame', 'general-pipe-covering', 'general-conduit-covering', 'general-lighting', 'general-window', 'general-door', 'general-outlet', 'general-switch', 'general-smoke-detector', 'general-thermostat', 'general-ceiling-medallion', 'general-vent-cover', 'general-access-panel'],
-  laundry: ['laundry-flooring', 'laundry-walls', 'laundry-ceiling', 'laundry-cabinets', 'laundry-washer', 'laundry-dryer', 'laundry-sink', 'laundry-shelving', 'laundry-folding-table', 'laundry-countertop', 'laundry-lighting', 'laundry-outlet', 'laundry-dryer-vent', 'laundry-trim', 'laundry-baseboard', 'laundry-crown-molding', 'laundry-wainscoting', 'laundry-door', 'laundry-utility-sink-faucet', 'laundry-storage-rack', 'laundry-ironing-station', 'laundry-hanging-rods', 'laundry-ventilation-fan'],
-  'dining-room': ['dining-room-flooring', 'dining-room-walls', 'dining-room-ceiling', 'dining-room-chandelier', 'dining-room-built-in-buffet', 'dining-room-display-cabinet', 'dining-room-window-treatments', 'dining-room-trim', 'dining-room-crown-molding', 'dining-room-wainscoting', 'dining-room-chair-rail', 'dining-room-baseboard', 'dining-room-lighting', 'dining-room-outlet', 'dining-room-switch', 'dining-room-window', 'dining-room-door', 'dining-room-accent-wall', 'dining-room-wall-art-frame', 'dining-room-ceiling-medallion', 'dining-room-serving-hutch'],
-  basement: ['basement-flooring', 'basement-walls', 'basement-ceiling', 'basement-waterproofing', 'basement-egress-window', 'basement-sump-pump', 'basement-drop-ceiling', 'basement-insulation', 'basement-lighting', 'basement-trim', 'basement-baseboard', 'basement-staircase', 'basement-handrail', 'basement-storage-shelves', 'basement-built-in-bar', 'basement-home-theater', 'basement-outlet', 'basement-switch', 'basement-ventilation', 'basement-fireplace', 'basement-accent-wall'],
-  'walk-in-closet': ['walk-in-closet-flooring', 'walk-in-closet-walls', 'walk-in-closet-ceiling', 'walk-in-closet-shelves', 'walk-in-closet-rods', 'walk-in-closet-drawers', 'walk-in-closet-organizer', 'walk-in-closet-lighting', 'walk-in-closet-mirror', 'walk-in-closet-door', 'walk-in-closet-bench', 'walk-in-closet-island', 'walk-in-closet-shoe-rack', 'walk-in-closet-trim', 'walk-in-closet-baseboard', 'walk-in-closet-crown-molding', 'walk-in-closet-accent-wall', 'walk-in-closet-carpet', 'walk-in-closet-storage-bins', 'walk-in-closet-valet-rod'],
-};
-
 const validateCategoryKey = (key) => {
-  if (!key) return false;
-  return key.startsWith('custom_') || Object.keys(VALID_WORK_TYPES).includes(key);
+  if (!key || typeof key !== 'string') return false;
+  return key.trim().length > 0;
 };
 
 const validateWorkType = (categoryKey, workType) => {
-  if (!categoryKey || !workType) {
-    console.warn(`⚠️ Validation skipped: categoryKey=${categoryKey}, workType=${workType}`);
+  if (!categoryKey || !workType || typeof workType !== 'string') {
     return false;
   }
-  if (workType === 'custom-work-type') {
-    console.log(`✅ Custom work type detected for category "${categoryKey}" - VALID`);
-    return true;
-  }
-  if (categoryKey.startsWith('custom_')) {
-    console.log(`✅ Custom category detected: ${categoryKey} - allowing work type: ${workType}`);
-    return true;
-  }
-  const validTypes = VALID_WORK_TYPES[categoryKey];
-  if (!validTypes) {
-    console.warn(`⚠️ Category '${categoryKey}' not found in VALID_WORK_TYPES`);
-    return false;
-  }
-  const isValid = validTypes.includes(workType);
-  if (!isValid) {
-    console.warn(`❌ Invalid work type '${workType}' for category '${categoryKey}'.`);
-  }
-  return isValid;
+  return workType.trim().length > 0;
 };
 
 const normalizeToCanonicalMeasurementType = (type) => {
@@ -64,6 +29,7 @@ const normalizeToCanonicalMeasurementType = (type) => {
 // --- Sub-Schemas ---
 
 const surfaceSchema = new Schema({
+  id: { type: String, default: '', trim: true },
   name: { type: String, default: '', trim: true },
   measurementType: { type: String, required: true },
   width: { type: Number, default: 0, min: 0 },
@@ -149,22 +115,27 @@ const miscFeeSchema = new Schema({
   amount: { type: Number, required: true, min: 0 },
 });
 
+// ─── FIXED: Complete payment schema with all fields ────────────────────────────
 const paymentSchema = new Schema(
   {
     date: { type: Date, required: true },
-    amount: { type: Number, required: true, min: 0.01 },
-    // 'type' stores the canonical payment category (e.g. 'Deposit', 'One-Time', 'Installment')
+    amount: { type: Number, required: true, min: 0 },
+    // ─── CRITICAL: 'type' is the field the frontend uses ──────────────
+    // Must match exactly: "Deposit", "Installment", "Refund", "Other"
+    type: {
+      type: String,
+      enum: ['Deposit', 'Installment', 'Refund', 'Other'],
+      required: true,
+      default: 'Installment',
+    },
+    // Backward compatibility field
     paymentType: {
       type: String,
-      enum: ['Deposit', 'One-Time', 'Installment', 'Other'],
-      default: 'One-Time',
+      enum: ['Deposit', 'Installment', 'Refund', 'Other'],
+      default: 'Installment',
     },
     method: {
       type: String,
-      // FIX: Expanded enum to include all methods the frontend uses.
-      // Previously missing entries (Bank Transfer, PayPal, Venmo, CashApp, Other)
-      // caused Mongoose validation errors that silently prevented wasteEntries
-      // from being saved along with the rest of settings.
       enum: [
         'Credit', 'Debit', 'Check', 'Cash', 'Zelle',
         'Deposit', 'Installment', 'Wire',
@@ -175,31 +146,69 @@ const paymentSchema = new Schema(
     note: { type: String, default: '', trim: true },
     isPaid: { type: Boolean, default: true },
     status: { type: String, enum: ['Pending', 'Paid', 'Overdue'], default: 'Paid' },
+    
+    // ─── CRITICAL: Fields for installment tracking ──────────────────────
+    paidMethod: { type: String, default: '', trim: true },
+    manuallyAdjusted: { type: Boolean, default: false },
+    paidAt: { type: Date },
+    createdAt: { type: Date },
+    updatedAt: { type: Date },
+    installmentNumber: { type: Number, index: true },
+    totalInstallments: { type: Number },
+    id: { type: String, default: '', trim: true, index: true },
+    
+    // Additional fields for payment tracking
+    paymentNumber: { type: String, trim: true },
+    reference: { type: String, trim: true },
+    transactionId: { type: String, trim: true },
+    checkNumber: { type: String, trim: true },
   },
-  // NOTE: timestamps REMOVED intentionally.
-  // { timestamps: true } adds createdAt/updatedAt to each payment subdocument.
-  // When the frontend re-sends saved payments, those timestamp fields arrive
-  // alongside extra fields like 'type' (not in schema). Together they can cause
-  // Mongoose subdocument casting to fail for the whole payments array,
-  // silently preventing wasteEntries (in the same settings object) from saving.
-  // The controller sanitizeSettings() is the single place that normalises payments.
+  {
+    _id: true,
+  }
 );
 
-// FIX #1: Add wasteEntrySchema and wasteEntries[] to settingsSchema.
-// Previously missing — Mongoose strict mode silently dropped this field on
-// every save, making calculateWasteCost() in projects.js always fall through
-// to the global wasteFactor fallback instead of using per-surface entries.
+// ─── FIXED: Keep type/paymentType in sync ──────────────────────────────────
+paymentSchema.pre('validate', function (next) {
+  // If type is set but paymentType isn't, copy type to paymentType
+  if (this.type && !this.paymentType) {
+    this.paymentType = this.type;
+  }
+  // If paymentType is set but type isn't, copy paymentType to type
+  if (this.paymentType && !this.type) {
+    this.type = this.paymentType;
+  }
+  // If both are set but different, use type as the source of truth
+  if (this.type && this.paymentType && this.type !== this.paymentType) {
+    this.paymentType = this.type;
+  }
+
+  if (this.type === 'Refund') {
+    this.isPaid = true;
+    this.status = 'Paid';
+  } else if (this.isPaid) {
+    this.status = 'Paid';
+  } else if (!this.status || this.status === 'Paid') {
+    this.status = this.date && this.date < new Date() ? 'Overdue' : 'Pending';
+  }
+
+  next();
+});
+
 const wasteEntrySchema = new Schema({
   surfaceName: { type: String, default: '', trim: true },
+  surfaceId: { type: String, default: '', trim: true },
   surfaceCost: { type: Number, default: 0, min: 0 },
+  measurementType: { type: String, default: null, trim: true },
+  wasteable: { type: Boolean, default: null },
   wasteFactor: { type: Number, default: 0, min: 0, max: 0.5 },
+  manualOverride: { type: Boolean, default: false },
 });
 
 const settingsSchema = new Schema({
   taxRate: { type: Number, default: 0, min: 0, max: 1 },
   transportationFee: { type: Number, default: 0, min: 0 },
   wasteFactor: { type: Number, default: 0, min: 0, max: 1 },
-  // FIX #1: Per-surface waste entries — required by calculateWasteCost()
   wasteEntries: { type: [wasteEntrySchema], default: [] },
   laborDiscount: { type: Number, default: 0, min: 0, max: 1 },
   markup: { type: Number, default: 0, min: 0, max: 10 },
@@ -254,6 +263,10 @@ const customerInfoSchema = new Schema({
   direction: String,
   streetName: String,
   streetType: String,
+  signature: {
+    dataUrl: { type: String, default: '' },
+    date: { type: Date }
+  }
 });
 
 // --- Main Project Schema ---
@@ -294,7 +307,7 @@ const projectSchema = new Schema(
   {
     timestamps: true,
     validateBeforeSave: true,
-  },
+  }
 );
 
 // --- Hooks ---
@@ -453,6 +466,10 @@ projectSchema.statics.migrateDepositToPayment = async function () {
         note: 'Initial Deposit (migrated from old system)',
         isPaid: true,
         status: 'Paid',
+        type: 'Deposit',
+        paymentType: 'Deposit',
+        createdAt: new Date(),
+        updatedAt: new Date(),
       });
 
       project.set('settings.deposit', undefined);

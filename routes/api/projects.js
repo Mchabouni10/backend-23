@@ -3,8 +3,7 @@ const express = require('express');
 const router = express.Router();
 const projectsCtrl = require('../../controllers/api/projects');
 
-// Require token middleware for all routes
-router.use(require('../../config/checkToken'));
+// Auth (checkToken + ensureLoggedIn) is applied globally in server.js.
 
 // POST /api/projects - Create a new project
 router.post('/', projectsCtrl.create);
