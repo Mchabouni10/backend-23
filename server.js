@@ -174,6 +174,8 @@ app.listen(port, () => {
   devLogger.log(`   - POST   /api/users/signup`);
   devLogger.log(`   - POST   /api/users/login`);
   devLogger.log(`   - POST   /api/users/logout`);
+  devLogger.log(`   - GET    /api/users/me`);
+  devLogger.log(`   - POST   /api/users/refresh`);
   devLogger.log(`   - GET    /api/projects`);
   devLogger.log(`   - POST   /api/projects`);
   devLogger.log(`   - GET    /api/expenses`);

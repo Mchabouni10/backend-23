@@ -3,6 +3,26 @@ const Project = require('../../models/project');
 const logger = require('../../utils/logger');
 
 // --- Helper Functions ---
+
+// Mirrors src/constants/measurementTypes.js normalizeMeasurementType() on the
+// frontend. Kept in sync manually — if you change one, change the other.
+// Used only to decide which items are "wasteable" (SF/LF) vs not (BY_UNIT);
+// it does not affect stored measurementType values.
+function normalizeMeasurementType(type) {
+  if (!type) return 'square-foot';
+  const t = String(type).toLowerCase().trim();
+  if (['square-foot', 'sqft', 'sq ft', 'square foot', 'square foot (sqft)', 'single-surface'].includes(t)) {
+    return 'square-foot';
+  }
+  if (['linear-foot', 'linear ft', 'linearft', 'linear foot'].includes(t)) {
+    return 'linear-foot';
+  }
+  if (['by-unit', 'by unit', 'unit', 'units'].includes(t)) {
+    return 'by-unit';
+  }
+  return 'square-foot';
+}
+
 function getUnits(item) {
   if (!item || !Array.isArray(item.surfaces)) return 0;
   return item.surfaces.reduce((sum, surface) => {
@@ -59,7 +79,10 @@ function parsePayments(payments = []) {
   };
 }
 
-function calculateWasteCost(materialCost, settings) {
+// Waste is calculated only on the wasteable material cost (SF + LF items)
+// passed in — BY_UNIT items are excluded upstream in calculateCostsAndTotals().
+// Mirrors CalculatorEngine._calculateWaste() on the frontend exactly.
+function calculateWasteCost(wasteableMaterialCost, settings) {
   const s = settings || {};
   const wasteEntries = Array.isArray(s.wasteEntries) ? s.wasteEntries : [];
   if (wasteEntries.length > 0) {
@@ -69,40 +92,78 @@ function calculateWasteCost(materialCost, settings) {
       return sum + surfaceCost * factor;
     }, 0);
   }
-  const wasteFactorRate = Math.max(0, Math.min(0.5, s.wasteFactor || 0));
-  return materialCost * wasteFactorRate;
+  const wasteFactorRate = Math.max(0, Math.min(0.5, Number(s.wasteFactor) || 0));
+  return wasteableMaterialCost * wasteFactorRate;
 }
 
+// ─── SOURCE OF TRUTH: CalculatorEngine.js (frontend) ───────────────────────
+// This function is the backend mirror of CalculatorEngine.calculateTotals()
+// / _calculateAdjustments(). If the two ever disagree, CalculatorEngine.js
+// is correct and this should be changed to match it — not the other way
+// around. Order of operations (industry-standard for US contractors):
+//
+//  1. Raw material cost (all types) + wasteable material cost (SF/LF only)
+//  2. + Waste             → on SF/LF materials only (not BY_UNIT)
+//  3. = Adjusted material cost
+//  4. − Labor discount    → on labor only
+//  5. = Job subtotal      (adjusted materials + discounted labor)
+//  6. + Tax               → on adjusted material cost ONLY (materials are
+//                            taxed, labor is a service and is not taxed —
+//                            see Illinois Use Tax rules)
+//  7. + Markup            → on the pre-tax job subtotal
+//  8. + Misc fees + Transportation (flat pass-through, not taxed/marked-up)
+//  9. − Credits           → price adjustments, the only step that lowers
+//                            the grand total below the raw job cost
+// 10. = Grand total (floored at 0)
+// ─────────────────────────────────────────────────────────────────────────
 function calculateCostsAndTotals(categories, settings) {
-  let materialCost = 0;
+  let materialCost = 0;              // all material (SF + LF + EA)
+  let wasteableMaterialCost = 0;     // only SF + LF material
   let laborCostBeforeDiscount = 0;
+
   (categories || []).forEach(category => {
     (category.workItems || []).forEach(item => {
       const units = getUnits(item);
-      materialCost += (Number(item.materialCost) || 0) * units;
+      const itemMaterialCost = (Number(item.materialCost) || 0) * units;
+      materialCost += itemMaterialCost;
       laborCostBeforeDiscount += (Number(item.laborCost) || 0) * units;
+
+      // Only SF and LF items are wasteable. BY_UNIT items (faucets,
+      // fixtures, etc.) are never wasted — a contractor buys exactly
+      // what they need.
+      const mt = normalizeMeasurementType(item.measurementType);
+      if (mt === 'square-foot' || mt === 'linear-foot') {
+        wasteableMaterialCost += itemMaterialCost;
+      }
     });
   });
 
   const s = settings || {};
-  const laborDiscountRate = s.laborDiscount || 0;
+
+  const wasteCost = calculateWasteCost(wasteableMaterialCost, s);
+  const adjustedMaterialCost = materialCost + wasteCost;
+
+  const laborDiscountRate = Math.max(0, Math.min(1, Number(s.laborDiscount) || 0));
   const laborDiscountAmount = laborCostBeforeDiscount * laborDiscountRate;
   const laborCost = laborCostBeforeDiscount - laborDiscountAmount;
-  
-  const wasteCost = calculateWasteCost(materialCost, s);
-  const materialCostWithWaste = materialCost + wasteCost;
-  
-  const subtotal = materialCostWithWaste + laborCost;
-  const markupRate = s.markup || 0;
+
+  const subtotal = adjustedMaterialCost + laborCost;
+
+  // Tax on adjusted material cost only — NOT on labor.
+  const taxRate = Math.max(0, Math.min(0.25, Number(s.taxRate) || 0));
+  const taxAmount = adjustedMaterialCost * taxRate;
+
+  // Markup on the pre-tax subtotal (materials + labor).
+  const markupRate = Math.max(0, Math.min(5, Number(s.markup) || 0));
   const markupAmount = subtotal * markupRate;
-  
-  const taxRate = s.taxRate || 0;
-  const taxAmount = subtotal * taxRate;
-  
+
   const miscFeesTotal = (s.miscFees || []).reduce((sum, f) => sum + (Number(f.amount) || 0), 0);
-  const transportationFee = Number(s.transportationFee) || 0;
-  
-  const grandTotal = subtotal + markupAmount + taxAmount + miscFeesTotal + transportationFee;
+  const transportationFee = Math.max(0, Number(s.transportationFee) || 0);
+
+  const creditsTotal = (s.credits || []).reduce((sum, c) => sum + Math.max(0, Number(c.amount) || 0), 0);
+
+  const preCreditTotal = subtotal + markupAmount + taxAmount + miscFeesTotal + transportationFee;
+  const grandTotal = Math.max(0, preCreditTotal - creditsTotal);
 
   return {
     materialCost: Number(materialCost.toFixed(2)),
@@ -113,6 +174,7 @@ function calculateCostsAndTotals(categories, settings) {
     taxAmount: Number(taxAmount.toFixed(2)),
     markupAmount: Number(markupAmount.toFixed(2)),
     miscFeesTotal: Number(miscFeesTotal.toFixed(2)),
+    creditsTotal: Number(creditsTotal.toFixed(2)),
     transportationFee: Number(transportationFee.toFixed(2)),
     subtotal: Number(subtotal.toFixed(2)),
     total: Number(grandTotal.toFixed(2)),
@@ -336,6 +398,26 @@ function sanitizeSettings(raw) {
         })
     : [];
 
+  // ── credits: price adjustments (damaged product, price change, etc) ────
+  // Distinct from payments/refunds — these lower the grand total itself.
+  // Shape matches EMPTY_CREDIT() in PaymentTracking.jsx.
+  const credits = Array.isArray(s.credits)
+    ? s.credits
+        .filter(c => c && c.date && c.amount >= 0 && c.reason)
+        .map(c => {
+          const clean = {
+            date: new Date(c.date),
+            amount: Math.max(0, Number(c.amount) || 0),
+            reason: String(c.reason).trim(),
+          };
+          if (c._id) clean._id = c._id;
+          if (c.id) clean.id = String(c.id);
+          if (c.createdAt) clean.createdAt = new Date(c.createdAt);
+          if (c.updatedAt) clean.updatedAt = new Date(c.updatedAt);
+          return clean;
+        })
+    : [];
+
   return {
     taxRate:          Math.max(0, Math.min(1,   Number(s.taxRate)          || 0)),
     transportationFee:Math.max(0,               Number(s.transportationFee)|| 0),
@@ -345,6 +427,7 @@ function sanitizeSettings(raw) {
     wasteEntries,
     miscFees,
     payments,
+    credits,
   };
 }
 
@@ -408,6 +491,7 @@ async function createOrUpdate(req, res, isUpdate = false) {
           'settings.wasteEntries':      cleanSettings.wasteEntries,
           'settings.miscFees':          cleanSettings.miscFees,
           'settings.payments':          cleanSettings.payments,
+          'settings.credits':           cleanSettings.credits,
           'totals.materialCost':        costs.materialCost,
           'totals.laborCost':           costs.laborCost,
           'totals.laborCostBeforeDiscount': costs.laborCostBeforeDiscount,
@@ -416,6 +500,7 @@ async function createOrUpdate(req, res, isUpdate = false) {
           'totals.taxAmount':           costs.taxAmount,
           'totals.markupAmount':        costs.markupAmount,
           'totals.miscFeesTotal':       costs.miscFeesTotal,
+          'totals.creditsTotal':        costs.creditsTotal,
           'totals.transportationFee':   costs.transportationFee,
           'totals.subtotal':            costs.subtotal,
           'totals.total':               costs.total,
@@ -437,7 +522,7 @@ async function createOrUpdate(req, res, isUpdate = false) {
       }
 
       // ✅ FIX: Changed logger.info to logger.log and fixed the template literal spacing
-      logger.log(`✅ Project updated: ${project._id}, payments: ${cleanSettings.payments.length}`);
+      logger.log(`✅ Project updated: ${project._id}, payments: ${cleanSettings.payments.length}, credits: ${cleanSettings.credits.length}`);
 
     } else {
       const projectData = {
@@ -458,7 +543,7 @@ async function createOrUpdate(req, res, isUpdate = false) {
       await project.save();
       
       // ✅ FIX: Changed logger.info to logger.log
-      logger.log(`✅ Project created: ${project._id}, payments: ${cleanSettings.payments.length}`);
+      logger.log(`✅ Project created: ${project._id}, payments: ${cleanSettings.payments.length}, credits: ${cleanSettings.credits.length}`);
     }
 
     res.status(isUpdate ? 200 : 201).json(project);

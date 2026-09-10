@@ -115,6 +115,25 @@ const miscFeeSchema = new Schema({
   amount: { type: Number, required: true, min: 0 },
 });
 
+// ─── Credits: price adjustments (damaged product, price change, customer ──
+// dissatisfaction, etc). These reduce the project's grand total itself —
+// they are NOT a payment/refund, and are distinct from settings.payments.
+// Shape must match EMPTY_CREDIT() in PaymentTracking.jsx: { id, date,
+// amount, reason, createdAt, updatedAt }.
+const creditSchema = new Schema(
+  {
+    id: { type: String, default: '', trim: true, index: true },
+    date: { type: Date, required: true },
+    amount: { type: Number, required: true, min: 0 },
+    reason: { type: String, required: [true, 'Credit reason is required.'], trim: true },
+    createdAt: { type: Date },
+    updatedAt: { type: Date },
+  },
+  {
+    _id: true,
+  }
+);
+
 // ─── FIXED: Complete payment schema with all fields ────────────────────────────
 const paymentSchema = new Schema(
   {
@@ -214,6 +233,7 @@ const settingsSchema = new Schema({
   markup: { type: Number, default: 0, min: 0, max: 10 },
   miscFees: { type: [miscFeeSchema], default: [] },
   payments: { type: [paymentSchema], default: [] },
+  credits: { type: [creditSchema], default: [] },
 });
 
 const customerInfoSchema = new Schema({
@@ -293,6 +313,7 @@ const projectSchema = new Schema(
       taxAmount: { type: Number, default: 0 },
       markupAmount: { type: Number, default: 0 },
       miscFeesTotal: { type: Number, default: 0 },
+      creditsTotal: { type: Number, default: 0 },
       transportationFee: { type: Number, default: 0 },
       subtotal: { type: Number, default: 0 },
       total: { type: Number, default: 0 },

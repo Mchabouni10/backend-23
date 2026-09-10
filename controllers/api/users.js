@@ -5,10 +5,15 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const User = require('../../models/user');
 
+const TOKEN_TTL = '24h';
+const TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
+
 module.exports = {
   create,
   login,
   logout,
+  me,
+  refresh,
 };
 
 async function create(req, res) {
@@ -24,14 +29,7 @@ async function create(req, res) {
 
     const normalizedEmail = email.trim().toLowerCase();
     const user = await User.create({ name: name.trim(), email: normalizedEmail, password });
-    const token = createJWT(user);
-
-    // Set as HttpOnly cookie so the token is not accessible to JS (XSS-safe).
-    // The frontend can still pass the token via Authorization header if it
-    // prefers, but the cookie is the recommended path.
-    setAuthCookie(res, token);
-
-    res.status(201).json({ token, user: publicUser(user) });
+    res.status(201).json(issueAuth(res, user));
   } catch (e) {
     // Duplicate email
     if (e && e.code === 11000) {
@@ -60,9 +58,7 @@ async function login(req, res) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    const token = createJWT(user);
-    setAuthCookie(res, token);
-    res.status(200).json({ token, user: publicUser(user) });
+    res.status(200).json(issueAuth(res, user));
   } catch (e) {
     res.status(500).json({ error: 'Login failed' });
   }
@@ -73,6 +69,17 @@ async function logout(req, res) {
   res.status(200).json({ ok: true });
 }
 
+async function me(req, res) {
+  res.status(200).json({
+    user: publicUser(req.user),
+    expiresAt: expiryFromRequest(req),
+  });
+}
+
+async function refresh(req, res) {
+  res.status(200).json(issueAuth(res, req.user));
+}
+
 /* Helper Functions */
 
 function createJWT(user) {
@@ -81,8 +88,25 @@ function createJWT(user) {
   return jwt.sign(
     { id: user._id.toString() },
     process.env.SECRET,
-    { expiresIn: '24h' }
+    { expiresIn: TOKEN_TTL }
   );
+}
+
+function issueAuth(res, user) {
+  const token = createJWT(user);
+  setAuthCookie(res, token);
+  const decoded = jwt.decode(token);
+  const expiresAt = decoded?.exp
+    ? new Date(decoded.exp * 1000).toISOString()
+    : new Date(Date.now() + TOKEN_TTL_MS).toISOString();
+  return { token, user: publicUser(user), expiresAt };
+}
+
+function expiryFromRequest(req) {
+  if (req.exp instanceof Date && !Number.isNaN(req.exp.getTime())) {
+    return req.exp.toISOString();
+  }
+  return new Date(Date.now() + TOKEN_TTL_MS).toISOString();
 }
 
 function publicUser(user) {
@@ -100,11 +124,17 @@ function setAuthCookie(res, token) {
     secure: isProd,
     sameSite: isProd ? 'none' : 'lax', // 'none' so the cookie works for the
     // Capacitor mobile WebView cross-site; 'lax' is sufficient for local dev.
-    maxAge: 24 * 60 * 60 * 1000,
+    maxAge: TOKEN_TTL_MS,
     path: '/',
   });
 }
 
 function clearAuthCookie(res) {
-  res.clearCookie('token', { path: '/' });
+  const isProd = process.env.NODE_ENV === 'production';
+  res.clearCookie('token', {
+    path: '/',
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
+  });
 }

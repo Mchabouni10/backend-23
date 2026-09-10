@@ -66,7 +66,7 @@ module.exports = async function checkToken(req, res, next) {
   }
 
   try {
-    const user = await User.findById(payload.id);
+    const user = await User.findById(payload.id).select('-password');
     if (!user) return next(new TokenError('User no longer exists'));
     req.user = user;
     req.exp = payload.exp ? new Date(payload.exp * 1000) : null;
