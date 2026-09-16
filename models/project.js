@@ -294,12 +294,17 @@ const customerInfoSchema = new Schema({
 const projectSchema = new Schema(
   {
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    customerId: { type: Schema.Types.ObjectId, ref: 'Customer', index: true },
+    workflowStatus: { type: String, enum: ['draft', 'active', 'completed'], default: 'draft', index: true },
     customerInfo: { type: customerInfoSchema, required: true },
     categories: {
       type: [categorySchema],
       default: [],
       validate: [
-        (v) => Array.isArray(v) && v.length > 0,
+        function (v) {
+          const status = this.workflowStatus || this.get?.('workflowStatus') || this.getUpdate?.()?.$set?.workflowStatus;
+          return status === 'draft' || (Array.isArray(v) && v.length > 0);
+        },
         'Project must have at least one category.',
       ],
     },

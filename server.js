@@ -104,6 +104,7 @@ app.use('/api/users', require('./routes/api/users'));
 app.use(ensureLoggedIn);
 
 app.use('/api/projects', writeLimiter, require('./routes/api/projects'));
+app.use('/api/customers', writeLimiter, require('./routes/api/customers'));
 app.use('/api/expenses', writeLimiter, require('./routes/api/expenses'));
 app.use('/api/work-types', writeLimiter, require('./routes/api/workTypes'));
 

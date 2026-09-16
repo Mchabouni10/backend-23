@@ -1,5 +1,6 @@
 // controllers/api/projects.js
 const Project = require('../../models/project');
+const Customer = require('../../models/customer');
 const logger = require('../../utils/logger');
 
 // --- Helper Functions ---
@@ -434,9 +435,23 @@ function sanitizeSettings(raw) {
 // ─── CREATE / UPDATE ────────────────────────────────────────────────────────
 async function createOrUpdate(req, res, isUpdate = false) {
   try {
-    const { customerInfo, categories = [], settings = {} } = req.body;
+    const {
+      customerInfo,
+      customerId,
+      workflowStatus = isUpdate ? undefined : 'active',
+      categories = [],
+      settings = {},
+    } = req.body;
+    const isDraft = workflowStatus === 'draft';
+
+    if (customerId) {
+      const customer = await Customer.findOne({ _id: customerId, userId: req.user._id }).select('_id');
+      if (!customer) {
+        return res.status(400).json({ error: 'Invalid customer.', details: ['Customer does not exist or does not belong to this account.'] });
+      }
+    }
     
-    if (!Array.isArray(categories) || categories.length === 0) {
+    if (!isDraft && (!Array.isArray(categories) || categories.length === 0)) {
       return res.status(400).json({
         error: 'Validation failed.',
         details: ['Project must have at least one category'],
@@ -448,7 +463,7 @@ async function createOrUpdate(req, res, isUpdate = false) {
     try {
       fixedCategories = ensureCategoryKeys(categories);
       const totalWorkItems = fixedCategories.reduce((sum, cat) => sum + cat.workItems.length, 0);
-      if (totalWorkItems === 0) {
+      if (!isDraft && totalWorkItems === 0) {
         return res.status(400).json({
           error: 'Validation failed.',
           details: [
@@ -481,6 +496,8 @@ async function createOrUpdate(req, res, isUpdate = false) {
       const updatePayload = {
         $set: {
           userId:           req.user._id,
+          ...(customerId ? { customerId } : {}),
+          ...(workflowStatus ? { workflowStatus } : {}),
           customerInfo,
           categories:       fixedCategories,
           'settings.taxRate':           cleanSettings.taxRate,
@@ -527,6 +544,8 @@ async function createOrUpdate(req, res, isUpdate = false) {
     } else {
       const projectData = {
         userId: req.user._id,
+        ...(customerId ? { customerId } : {}),
+        workflowStatus: workflowStatus || 'active',
         customerInfo,
         categories: fixedCategories,
         settings: cleanSettings,
