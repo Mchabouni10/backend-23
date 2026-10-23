@@ -7,6 +7,9 @@ const projectsCtrl = require('../../controllers/api/projects');
 
 // POST /api/projects - Create a new project
 router.post('/', projectsCtrl.create);
+router.post('/:id/duplicate', projectsCtrl.duplicate);
+router.get('/calendar', projectsCtrl.calendar);
+router.get('/summary', projectsCtrl.summary);
 
 // GET /api/projects - List all projects for the authenticated user
 router.get('/', projectsCtrl.index);

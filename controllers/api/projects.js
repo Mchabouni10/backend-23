@@ -433,15 +433,29 @@ function sanitizeSettings(raw) {
 }
 
 // ─── CREATE / UPDATE ────────────────────────────────────────────────────────
+function cleanCustomerInfoDates(info = {}) {
+  const cleaned = { ...info };
+  if (cleaned.finishDate === '' || cleaned.finishDate === null) {
+    delete cleaned.finishDate;
+  }
+  if (cleaned.startDate === '' || cleaned.startDate === null) {
+    cleaned.startDate = new Date();
+  }
+  return cleaned;
+}
+
 async function createOrUpdate(req, res, isUpdate = false) {
   try {
     const {
-      customerInfo,
+      customerInfo: rawCustomerInfo,
       customerId,
       workflowStatus = isUpdate ? undefined : 'active',
       categories = [],
       settings = {},
+      autosave = false,
     } = req.body;
+    const customerInfo = cleanCustomerInfoDates(rawCustomerInfo);
+    const customerIdWasProvided = Object.prototype.hasOwnProperty.call(req.body, 'customerId');
     const isDraft = workflowStatus === 'draft';
 
     if (customerId) {
@@ -496,8 +510,16 @@ async function createOrUpdate(req, res, isUpdate = false) {
       const updatePayload = {
         $set: {
           userId:           req.user._id,
-          ...(customerId ? { customerId } : {}),
-          ...(workflowStatus ? { workflowStatus } : {}),
+          // A supplied null is an intentional unlink. Keeping the old id in
+          // that case makes the UI appear to unlink while the database does
+          // not, and causes the project to re-link on the next reload.
+          ...(customerIdWasProvided ? { customerId: customerId || null } : {}),
+          ...(customerIdWasProvided
+            ? { contactLinkState: customerId ? 'linked' : 'unlinked' }
+            : {}),
+          // Background autosave must NEVER change a project's status (it used to
+          // demote active projects to "draft"). Only explicit saves may.
+          ...(workflowStatus && !autosave ? { workflowStatus } : {}),
           customerInfo,
           categories:       fixedCategories,
           'settings.taxRate':           cleanSettings.taxRate,
@@ -545,6 +567,9 @@ async function createOrUpdate(req, res, isUpdate = false) {
       const projectData = {
         userId: req.user._id,
         ...(customerId ? { customerId } : {}),
+        ...(customerIdWasProvided
+          ? { contactLinkState: customerId ? 'linked' : 'unlinked' }
+          : {}),
         workflowStatus: workflowStatus || 'active',
         customerInfo,
         categories: fixedCategories,
@@ -646,4 +671,60 @@ async function deleteProject(req, res) {
   }
 }
 
-module.exports = { create, index, show, update, delete: deleteProject };
+async function duplicate(req, res) {
+  try {
+    const source = await Project.findOne({ _id: req.params.id, userId: req.user._id }).lean();
+    if (!source) return res.status(404).json({ error: 'Project not found.' });
+    const { _id, id, createdAt, updatedAt, ...copy } = source;
+    copy.userId = req.user._id;
+    copy.workflowStatus = 'draft';
+    copy.settings = { ...(copy.settings || {}), payments: [], credits: [] };
+    copy.paymentDetails = { grandTotal: 0, totalPaid: 0, totalDue: 0, depositAmount: 0 };
+    copy.customerInfo = {
+      ...copy.customerInfo,
+      projectName: `${copy.customerInfo?.projectName || 'Project'} (Copy)`,
+      startDate: copy.customerInfo?.startDate || new Date(),
+      finishDate: undefined,
+    };
+    const project = await Project.create(copy);
+    res.status(201).json(project);
+  } catch (err) {
+    logger.error('❌ duplicate project error:', err);
+    res.status(400).json({ error: 'Could not duplicate project.', details: [err.message] });
+  }
+}
+
+async function calendar(req, res) {
+  try {
+    const projects = await Project.find({ userId: req.user._id })
+      .select('_id customerId workflowStatus customerInfo.firstName customerInfo.lastName customerInfo.projectName customerInfo.startDate customerInfo.finishDate settings.payments paymentDetails')
+      .sort('customerInfo.startDate')
+      .lean();
+    res.json(projects);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error retrieving calendar data.' });
+  }
+}
+
+async function summary(req, res) {
+  try {
+    const [projects, customerCount] = await Promise.all([
+      Project.find({ userId: req.user._id, workflowStatus: { $ne: 'draft' } })
+        .select('workflowStatus totals.total paymentDetails.grandTotal paymentDetails.totalPaid paymentDetails.totalDue')
+        .lean(),
+      Customer.countDocuments({ userId: req.user._id }),
+    ]);
+    const totals = projects.reduce((out, p) => {
+      out.projectCount += 1;
+      out.grandTotal += Number(p.paymentDetails?.grandTotal ?? p.totals?.total ?? 0);
+      out.totalPaid += Number(p.paymentDetails?.totalPaid || 0);
+      out.totalDue += Number(p.paymentDetails?.totalDue || 0);
+      return out;
+    }, { projectCount: 0, grandTotal: 0, totalPaid: 0, totalDue: 0 });
+    res.json({ customerCount, ...totals });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error retrieving summary data.' });
+  }
+}
+
+module.exports = { create, index, show, update, duplicate, calendar, summary, delete: deleteProject };

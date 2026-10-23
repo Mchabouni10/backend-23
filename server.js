@@ -98,17 +98,8 @@ app.use(globalLimiter);
 // /api/users is mounted BEFORE ensureLoggedIn so signup/login still work.
 app.use(checkToken);
 
-app.use('/api/users', require('./routes/api/users'));
-
-// Anything below this line requires authentication.
-app.use(ensureLoggedIn);
-
-app.use('/api/projects', writeLimiter, require('./routes/api/projects'));
-app.use('/api/customers', writeLimiter, require('./routes/api/customers'));
-app.use('/api/expenses', writeLimiter, require('./routes/api/expenses'));
-app.use('/api/work-types', writeLimiter, require('./routes/api/workTypes'));
-
-// ---------- HEALTH CHECK (public) ----------
+// Health checks must remain public so deployment platforms can determine
+// whether the process is alive before a user session exists.
 app.get('/health', (req, res) => {
   res.json({
     status: 'healthy',
@@ -118,6 +109,16 @@ app.get('/health', (req, res) => {
     nodeVersion: process.version
   });
 });
+
+app.use('/api/users', require('./routes/api/users'));
+
+// Anything below this line requires authentication.
+app.use(ensureLoggedIn);
+
+app.use('/api/projects', writeLimiter, require('./routes/api/projects'));
+app.use('/api/customers', writeLimiter, require('./routes/api/customers'));
+app.use('/api/expenses', writeLimiter, require('./routes/api/expenses'));
+app.use('/api/work-types', writeLimiter, require('./routes/api/workTypes'));
 
 // ---------- ROOT ENDPOINT ----------
 app.get('/', (req, res) => {

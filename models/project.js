@@ -2,6 +2,7 @@
 
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
+const { isValidUSPhone, isValidEmail } = require('../utils/contactRules');
 
 // --- Constants & Helper Functions ---
 
@@ -252,14 +253,14 @@ const customerInfoSchema = new Schema({
     type: String,
     required: [true, 'Phone number is required.'],
     validate: {
-      validator: (v) => /^\d{10,11}$/.test((v || '').replace(/\D/g, '')),
+      validator: isValidUSPhone,
       message: 'Phone number must be a valid 10 or 11-digit number.',
     },
   },
   email: {
     type: String,
     required: [true, 'Email is required.'],
-    match: [/^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/, 'Please enter a valid email address.'],
+    validate: { validator: isValidEmail, message: 'Please enter a valid email address.' },
     lowercase: true,
     trim: true,
   },
@@ -274,7 +275,20 @@ const customerInfoSchema = new Schema({
   finishDate: {
     type: Date,
     validate: {
-      validator: function (v) { return !v || !this.startDate || v >= this.startDate; },
+      validator: function (v) {
+        if (!v) return true;
+        // Document validation: `this` is the sub-document.
+        // Update validation (findOneAndUpdate): `this` is the Query, so read
+        // the start date out of the $set payload instead.
+        let start = this.startDate;
+        if (start === undefined && typeof this.getUpdate === 'function') {
+          const update = this.getUpdate() || {};
+          const set = update.$set || update;
+          start = (set.customerInfo && set.customerInfo.startDate) || set['customerInfo.startDate'];
+        }
+        if (!start) return true;
+        return new Date(v) >= new Date(start);
+      },
       message: 'Finish date cannot be before the start date.',
     },
   },
@@ -295,6 +309,9 @@ const projectSchema = new Schema(
   {
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     customerId: { type: Schema.Types.ObjectId, ref: 'Customer', index: true },
+    // Projects keep a contact snapshot. This records an intentional detach so
+    // a later legacy/backfill sync cannot silently re-link the project.
+    contactLinkState: { type: String, enum: ['linked', 'unlinked'], default: 'linked', index: true },
     workflowStatus: { type: String, enum: ['draft', 'active', 'completed'], default: 'draft', index: true },
     customerInfo: { type: customerInfoSchema, required: true },
     categories: {
@@ -340,8 +357,6 @@ const projectSchema = new Schema(
 
 projectSchema.pre('validate', function (next) {
   try {
-    console.log('=== PRE-VALIDATE HOOK START ===');
-
     if (this.customerInfo) {
       const { addressNumber, direction, streetName, streetType } = this.customerInfo;
       if (addressNumber || streetName) {
@@ -353,44 +368,19 @@ projectSchema.pre('validate', function (next) {
     }
 
     if (Array.isArray(this.categories)) {
-      this.categories.forEach((category, categoryIndex) => {
-        if (!category || !Array.isArray(category.workItems)) {
-          console.warn(`⚠️ Invalid category at index ${categoryIndex}:`, category);
-          return;
-        }
+      this.categories.forEach((category) => {
+        if (!category || !Array.isArray(category.workItems)) return;
 
-        console.log(`📁 Processing category ${categoryIndex}: key="${category.key}", name="${category.name}"`);
-
-        category.workItems.forEach((item, itemIndex) => {
-          if (!item) {
-            console.warn(`⚠️ Invalid work item at category ${categoryIndex}, item ${itemIndex}`);
-            return;
-          }
+        category.workItems.forEach((item) => {
+          if (!item) return;
 
           item.categoryKey = category.key;
-
-          if (item.type === 'custom-work-type') {
-            if (!item.customWorkTypeName || item.customWorkTypeName.trim() === '') {
-              console.error(
-                `❌ Custom work item at category ${categoryIndex}, item ${itemIndex} missing customWorkTypeName`,
-              );
-            } else {
-              console.log(
-                `  ✅ Custom work type "${item.customWorkTypeName}" validated for categoryKey="${category.key}"`,
-              );
-            }
-          } else {
-            console.log(`  ✅ Standard work type "${item.type}" for categoryKey="${category.key}"`);
-          }
-
           item.measurementType = normalizeToCanonicalMeasurementType(item.measurementType);
 
           if (Array.isArray(item.surfaces)) {
             item.surfaces.forEach((surface) => {
               if (surface) {
-                surface.measurementType = normalizeToCanonicalMeasurementType(
-                  surface.measurementType,
-                );
+                surface.measurementType = normalizeToCanonicalMeasurementType(surface.measurementType);
               }
             });
           }
@@ -398,30 +388,10 @@ projectSchema.pre('validate', function (next) {
       });
     }
 
-    console.log('=== PRE-VALIDATE HOOK END ===');
     next();
   } catch (error) {
-    console.error('❌ Pre-validation hook error:', error);
+    console.error('Project pre-validate hook error:', error);
     next(error);
-  }
-});
-
-projectSchema.post('validate', function (doc) {
-  console.log('✅ Project validation passed successfully');
-  if (doc.categories) {
-    const totalWorkItems = doc.categories.reduce(
-      (sum, cat) => sum + (cat.workItems?.length || 0),
-      0,
-    );
-    const customWorkItems = doc.categories.reduce((sum, cat) => {
-      return (
-        sum +
-        (cat.workItems?.filter((item) => item.type === 'custom-work-type').length || 0)
-      );
-    }, 0);
-    console.log(
-      `📊 Validation summary: ${doc.categories.length} categories, ${totalWorkItems} work items (${customWorkItems} custom)`,
-    );
   }
 });
 
@@ -429,6 +399,7 @@ projectSchema.post('validate', function (doc) {
 projectSchema.index({ userId: 1, 'customerInfo.lastName': 1 });
 projectSchema.index({ userId: 1, 'customerInfo.startDate': 1 });
 projectSchema.index({ userId: 1, createdAt: -1 });
+projectSchema.index({ userId: 1, customerId: 1 }); // contact → projects lookups & counts
 
 // --- Static Methods ---
 

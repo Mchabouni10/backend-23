@@ -47,6 +47,10 @@ function nameToKey(name) {
     .replace(/-+/g, '-');
 }
 
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 /**
  * Build the full taxonomy tree consumed by the frontend.
  *
@@ -165,7 +169,11 @@ exports.createCategory = async (req, res) => {
     }
 
     const trimmedName = name.trim();
-    const key         = rawKey ? nameToKey(rawKey) : `custom_${nameToKey(trimmedName)}`;
+    const keyPart = rawKey ? nameToKey(rawKey) : nameToKey(trimmedName);
+    if (!keyPart) {
+      return res.status(400).json({ success: false, error: 'Category name must contain letters or numbers.' });
+    }
+    const key = rawKey ? keyPart : `custom_${keyPart}`;
 
     // ── Duplicate key check ──
     const existingByKey = await WorkTypeCategory.findOne({ key });
@@ -179,7 +187,7 @@ exports.createCategory = async (req, res) => {
 
     // ── Duplicate name check (case-insensitive) ──
     const existingByName = await WorkTypeCategory.findOne({
-      name: { $regex: new RegExp(`^${trimmedName}$`, 'i') },
+      name: { $regex: new RegExp(`^${escapeRegex(trimmedName)}$`, 'i') },
     });
     if (existingByName) {
       return res.status(409).json({
@@ -238,7 +246,7 @@ exports.updateCategory = async (req, res) => {
 
     // ── Duplicate name check (exclude self) ──
     const conflict = await WorkTypeCategory.findOne({
-      name:  { $regex: new RegExp(`^${trimmedName}$`, 'i') },
+      name:  { $regex: new RegExp(`^${escapeRegex(trimmedName)}$`, 'i') },
       key:   { $ne: categoryKey },
     });
     if (conflict) {
@@ -319,7 +327,11 @@ exports.createWorkType = async (req, res) => {
     }
 
     const trimmedName = name.trim();
-    const key         = rawKey ? nameToKey(rawKey) : `${categoryKey}-${nameToKey(trimmedName)}`;
+    const keyPart = rawKey ? nameToKey(rawKey) : nameToKey(trimmedName);
+    if (!keyPart) {
+      return res.status(400).json({ success: false, error: 'Work type name must contain letters or numbers.' });
+    }
+    const key = rawKey ? keyPart : `${categoryKey}-${keyPart}`;
 
     // ── Duplicate key check (global) ──
     const existingByKey = await WorkType.findOne({ key });
@@ -334,7 +346,7 @@ exports.createWorkType = async (req, res) => {
     // ── Duplicate name check within this category (case-insensitive) ──
     const existingByName = await WorkType.findOne({
       categoryKey,
-      name: { $regex: new RegExp(`^${trimmedName}$`, 'i') },
+      name: { $regex: new RegExp(`^${escapeRegex(trimmedName)}$`, 'i') },
     });
     if (existingByName) {
       return res.status(409).json({
@@ -400,7 +412,7 @@ exports.updateWorkType = async (req, res) => {
       // ── Duplicate name within same category (exclude self) ──
       const conflict = await WorkType.findOne({
         categoryKey: workType.categoryKey,
-        name: { $regex: new RegExp(`^${trimmedName}$`, 'i') },
+        name: { $regex: new RegExp(`^${escapeRegex(trimmedName)}$`, 'i') },
         key: { $ne: workTypeKey },
       });
       if (conflict) {
@@ -498,7 +510,7 @@ exports.createSubtype = async (req, res) => {
     // ── Duplicate check (case-insensitive) ──
     const existing = await Subtype.findOne({
       workTypeKey,
-      value: { $regex: new RegExp(`^${trimmedValue}$`, 'i') },
+      value: { $regex: new RegExp(`^${escapeRegex(trimmedValue)}$`, 'i') },
     });
     if (existing) {
       return res.status(409).json({
@@ -564,7 +576,7 @@ exports.updateSubtype = async (req, res) => {
     // ── Duplicate check (exclude self) ──
     const conflict = await Subtype.findOne({
       workTypeKey,
-      value: { $regex: new RegExp(`^${trimmedValue}$`, 'i') },
+      value: { $regex: new RegExp(`^${escapeRegex(trimmedValue)}$`, 'i') },
       _id:   { $ne: subtypeId },
     });
     if (conflict) {
