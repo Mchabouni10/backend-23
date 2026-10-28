@@ -308,6 +308,10 @@ const customerInfoSchema = new Schema({
 const projectSchema = new Schema(
   {
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    // Idempotency key for "create project". If the browser sends the same key
+    // twice (first POST committed but timed out), only one project exists.
+    // No default: projects without a key must simply NOT have the field.
+    clientRequestId: { type: String, trim: true },
     customerId: { type: Schema.Types.ObjectId, ref: 'Customer', index: true },
     // Projects keep a contact snapshot. This records an intentional detach so
     // a later legacy/backfill sync cannot silently re-link the project.
@@ -396,6 +400,13 @@ projectSchema.pre('validate', function (next) {
 });
 
 // --- Indexes ---
+// Partial index: only documents whose clientRequestId is a real string are
+// constrained. (A "sparse" index still indexes explicit nulls, so two projects
+// with clientRequestId: null for the same user collided with E11000.)
+projectSchema.index(
+  { userId: 1, clientRequestId: 1 },
+  { unique: true, partialFilterExpression: { clientRequestId: { $type: 'string' } } },
+);
 projectSchema.index({ userId: 1, 'customerInfo.lastName': 1 });
 projectSchema.index({ userId: 1, 'customerInfo.startDate': 1 });
 projectSchema.index({ userId: 1, createdAt: -1 });

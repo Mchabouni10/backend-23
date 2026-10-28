@@ -1,6 +1,54 @@
 // controllers/api/expenses.js
+const mongoose = require('mongoose');
 const Expense = require('../../models/expense');
+const Project = require('../../models/project');
+const Worker = require('../../models/worker');
 const logger = require('../../utils/logger');
+
+// --- Job-costing helpers ---
+
+const isBlank = (v) => v === undefined || v === null || v === '';
+
+const httpError = (status, message) =>
+  Object.assign(new Error(message), { status });
+
+/**
+ * Validates the optional projectId / workerId on an expense and makes sure
+ * they belong to the logged-in user. Only keys present in `input` are
+ * returned; a blank value is normalised to null (= "no link").
+ * Throws an error carrying `.status` when something is invalid.
+ */
+async function resolveLinks(userId, input) {
+  const out = {};
+
+  if (input.projectId !== undefined) {
+    if (isBlank(input.projectId)) {
+      out.projectId = null;
+    } else {
+      if (!mongoose.isValidObjectId(input.projectId)) {
+        throw httpError(400, 'Invalid project.');
+      }
+      const found = await Project.exists({ _id: input.projectId, userId });
+      if (!found) throw httpError(404, 'Project not found.');
+      out.projectId = input.projectId;
+    }
+  }
+
+  if (input.workerId !== undefined) {
+    if (isBlank(input.workerId)) {
+      out.workerId = null;
+    } else {
+      if (!mongoose.isValidObjectId(input.workerId)) {
+        throw httpError(400, 'Invalid worker.');
+      }
+      const found = await Worker.exists({ _id: input.workerId, userId });
+      if (!found) throw httpError(404, 'Worker not found.');
+      out.workerId = input.workerId;
+    }
+  }
+
+  return out;
+}
 
 // --- Helper Functions ---
 
@@ -130,8 +178,29 @@ async function create(req, res) {
       });
     }
 
+    // Job costing links (project / worker)
+    const links = await resolveLinks(req.user._id, req.body);
+    if (
+      ['worker_pay', 'crew_meals'].includes(req.body.category) &&
+      !links.projectId
+    ) {
+      return res.status(400).json({
+        error: 'Worker pay and crew meals must be linked to a project.'
+      });
+    }
+    if (req.body.category === 'worker_pay' && !links.workerId) {
+      return res.status(400).json({
+        error: 'Worker Pay needs both a worker and a project.'
+      });
+    }
+
     const expenseData = {
       userId: req.user._id,
+      projectId: links.projectId || null,
+      // Worker pay and optionally worker-specific meals carry a worker.
+      workerId: ['worker_pay', 'crew_meals'].includes(req.body.category)
+        ? links.workerId || null
+        : null,
       date: req.body.date,
       category: req.body.category,
       amount: parseFloat(req.body.amount),
@@ -158,6 +227,10 @@ async function create(req, res) {
     
   } catch (err) {
     logger.error('❌ Error creating expense:', err);
+
+    if (err.status) {
+      return res.status(err.status).json({ error: err.message });
+    }
     
     if (err.name === 'ValidationError') {
       const messages = Object.values(err.errors).map(e => e.message);
@@ -180,7 +253,7 @@ async function create(req, res) {
  */
 async function index(req, res) {
   try {
-    const { startDate, endDate, category, month, year, limit, sort } = req.query;
+    const { startDate, endDate, category, month, year, limit, sort, projectId, workerId } = req.query;
     
     // Build query
     const query = { userId: req.user._id };
@@ -213,6 +286,16 @@ async function index(req, res) {
     // Category filtering
     if (category) {
       query.category = category;
+    }
+
+    // Job costing filters ('none' = overhead only, i.e. no project)
+    if (projectId === 'none') {
+      query.projectId = null;
+    } else if (projectId && mongoose.isValidObjectId(projectId)) {
+      query.projectId = projectId;
+    }
+    if (workerId && mongoose.isValidObjectId(workerId)) {
+      query.workerId = workerId;
     }
     
     logger.log('🔍 Query:', JSON.stringify(query, null, 2));
@@ -330,6 +413,31 @@ async function update(req, res) {
         updateData[field] = req.body[field];
       }
     });
+
+    // Job costing links (validated + ownership-checked)
+    const links = await resolveLinks(req.user._id, req.body);
+    if ('projectId' in links) updateData.projectId = links.projectId;
+    if ('workerId' in links) updateData.workerId = links.workerId;
+
+    const current = await Expense.findOne({ _id: req.params.id, userId: req.user._id })
+      .select('category projectId workerId')
+      .lean();
+    if (!current) {
+      return res.status(404).json({ error: 'Expense not found or you do not have permission to edit it.' });
+    }
+    const nextCategory = updateData.category || current.category;
+    const nextProjectId = Object.prototype.hasOwnProperty.call(updateData, 'projectId')
+      ? updateData.projectId
+      : current.projectId;
+    const nextWorkerId = Object.prototype.hasOwnProperty.call(updateData, 'workerId')
+      ? updateData.workerId
+      : current.workerId;
+    if (['worker_pay', 'crew_meals'].includes(nextCategory) && !nextProjectId) {
+      return res.status(400).json({ error: 'Worker pay and crew meals must be linked to a project.' });
+    }
+    if (nextCategory === 'worker_pay' && !nextWorkerId) {
+      return res.status(400).json({ error: 'Worker Pay needs both a worker and a project.' });
+    }
     
     // Convert amount to number if present
     if (updateData.amount) {
@@ -357,6 +465,10 @@ async function update(req, res) {
     
   } catch (err) {
     logger.error(`❌ Error updating expense ${req.params.id}:`, err);
+
+    if (err.status) {
+      return res.status(err.status).json({ error: err.message });
+    }
     
     if (err.name === 'ValidationError') {
       const messages = Object.values(err.errors).map(e => e.message);

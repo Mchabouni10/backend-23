@@ -119,6 +119,8 @@ app.use('/api/projects', writeLimiter, require('./routes/api/projects'));
 app.use('/api/customers', writeLimiter, require('./routes/api/customers'));
 app.use('/api/expenses', writeLimiter, require('./routes/api/expenses'));
 app.use('/api/work-types', writeLimiter, require('./routes/api/workTypes'));
+// ✅ NEW: workers + project assignments (this was missing, which caused the 404)
+app.use('/api/workers', writeLimiter, require('./routes/api/workers'));
 
 // ---------- ROOT ENDPOINT ----------
 app.get('/', (req, res) => {
@@ -128,14 +130,17 @@ app.get('/', (req, res) => {
     endpoints: {
       users: '/api/users',
       projects: '/api/projects',
+      customers: '/api/customers',
       expenses: '/api/expenses',
       workTypes: '/api/work-types',
+      workers: '/api/workers',
       health: '/health'
     }
   });
 });
 
 // ---------- 404 HANDLER ----------
+// Must stay AFTER every app.use('/api/...') line above.
 app.use((req, res) => {
   devLogger.warn(`⚠️ 404 - Route not found: ${req.method} ${req.path}`);
   res.status(404).json({
@@ -187,6 +192,13 @@ app.listen(port, () => {
   devLogger.log(`   - GET    /api/work-types`);
   devLogger.log(`   - PATCH  /api/work-types/...`);
   devLogger.log(`   - DELETE /api/work-types/...`);
+  devLogger.log(`   - GET    /api/workers`);
+  devLogger.log(`   - POST   /api/workers`);
+  devLogger.log(`   - PUT    /api/workers/:id`);
+  devLogger.log(`   - DELETE /api/workers/:id`);
+  devLogger.log(`   - GET    /api/workers/assignments`);
+  devLogger.log(`   - PUT    /api/workers/assignments`);
+  devLogger.log(`   - DELETE /api/workers/assignments/:id`);
   devLogger.log(`   - GET    /health`);
 });
 

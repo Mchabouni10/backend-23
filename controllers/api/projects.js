@@ -182,7 +182,12 @@ function calculateCostsAndTotals(categories, settings) {
   };
 }
 
-function ensureCategoryKeys(categories) {
+function toSurfaceNumber(value) {
+  const n = typeof value === 'number' ? value : parseFloat(value);
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+
+function ensureCategoryKeys(categories, { strict = false } = {}) {
   if (!Array.isArray(categories)) {
     logger.warn('⚠️ ensureCategoryKeys: categories is not an array');
     return [];
@@ -223,11 +228,13 @@ function ensureCategoryKeys(categories) {
             ...surface,
             id: surface.id || '',
             measurementType: surface.measurementType || item.measurementType || 'square-foot',
-            width: typeof surface.width === 'number' ? surface.width : 0,
-            height: typeof surface.height === 'number' ? surface.height : 0,
-            sqft: typeof surface.sqft === 'number' ? surface.sqft : 0,
-            linearFt: typeof surface.linearFt === 'number' ? surface.linearFt : 0,
-            units: typeof surface.units === 'number' ? surface.units : 0,
+            // Accept numeric strings ("12.5") too: the old typeof check turned
+            // them into 0 and silently lost the measurement.
+            width: toSurfaceNumber(surface.width),
+            height: toSurfaceNumber(surface.height),
+            sqft: toSurfaceNumber(surface.sqft),
+            linearFt: toSurfaceNumber(surface.linearFt),
+            units: toSurfaceNumber(surface.units),
             manualSqft: Boolean(surface.manualSqft),
           }))
         : [];
@@ -250,6 +257,15 @@ function ensureCategoryKeys(categories) {
     });
 
     if (skippedItems.length > 0) {
+      // Final saves must never silently drop work the user entered. Drafts may
+      // be incomplete (the model cannot store an item without a type), so only
+      // drafts are allowed to skip.
+      if (strict) {
+        const list = skippedItems
+          .map((s) => `item ${s.index + 1} (${s.name || 'Unnamed'}): ${s.reason}`)
+          .join('; ');
+        throw new Error(`Category "${category.name}" has incomplete work items — ${list}.`);
+      }
       logger.warn(`⚠️ Category "${category.name}" (${category.key}): Skipped ${skippedItems.length} invalid items`);
     }
 
@@ -445,6 +461,13 @@ function cleanCustomerInfoDates(info = {}) {
 }
 
 async function createOrUpdate(req, res, isUpdate = false) {
+  // Idempotency key (create only). Read outside the try so the error handler
+  // can use it too.
+  const requestKey =
+    !isUpdate && req.body && req.body.clientRequestId
+      ? String(req.body.clientRequestId).trim().slice(0, 100) || null
+      : null;
+
   try {
     const {
       customerInfo: rawCustomerInfo,
@@ -475,7 +498,7 @@ async function createOrUpdate(req, res, isUpdate = false) {
 
     let fixedCategories;
     try {
-      fixedCategories = ensureCategoryKeys(categories);
+      fixedCategories = ensureCategoryKeys(categories, { strict: !isDraft });
       const totalWorkItems = fixedCategories.reduce((sum, cat) => sum + cat.workItems.length, 0);
       if (!isDraft && totalWorkItems === 0) {
         return res.status(400).json({
@@ -564,8 +587,16 @@ async function createOrUpdate(req, res, isUpdate = false) {
       logger.log(`✅ Project updated: ${project._id}, payments: ${cleanSettings.payments.length}, credits: ${cleanSettings.credits.length}`);
 
     } else {
+      if (requestKey) {
+        const existing = await Project.findOne({
+          userId: req.user._id,
+          clientRequestId: requestKey,
+        });
+        if (existing) return res.status(200).json(existing);
+      }
       const projectData = {
         userId: req.user._id,
+        ...(requestKey ? { clientRequestId: requestKey } : {}),
         ...(customerId ? { customerId } : {}),
         ...(customerIdWasProvided
           ? { contactLinkState: customerId ? 'linked' : 'unlinked' }
@@ -606,6 +637,20 @@ async function createOrUpdate(req, res, isUpdate = false) {
     
     if (err.name === 'CastError') {
       return res.status(400).json({ error: 'Invalid data format.', details: [err.message], paths: [err.path] });
+    }
+
+    if (err.code === 11000 && requestKey) {
+      // Two identical create requests arrived at the same time and the unique
+      // index stopped the second one. Return the project that won.
+      try {
+        const existing = await Project.findOne({
+          userId: req.user._id,
+          clientRequestId: requestKey,
+        });
+        if (existing) return res.status(200).json(existing);
+      } catch (lookupErr) {
+        logger.error('❌ Idempotent lookup failed:', lookupErr);
+      }
     }
 
     if (err.code === 11000) {
@@ -677,6 +722,7 @@ async function duplicate(req, res) {
     if (!source) return res.status(404).json({ error: 'Project not found.' });
     const { _id, id, createdAt, updatedAt, ...copy } = source;
     copy.userId = req.user._id;
+    delete copy.clientRequestId; // a copy is a new project, never the same create request
     copy.workflowStatus = 'draft';
     copy.settings = { ...(copy.settings || {}), payments: [], credits: [] };
     copy.paymentDetails = { grandTotal: 0, totalPaid: 0, totalDue: 0, depositAmount: 0 };

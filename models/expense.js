@@ -6,7 +6,9 @@ const Schema = mongoose.Schema;
 const EXPENSE_CATEGORIES = [
   'fuel', 'vehicle_maint', 'phone', 'website', 'software', 'marketing',
   'insurance', 'tools', 'material', 'subcontractors', 'permits', 'office',
-  'rent', 'disposal', 'taxes', 'meals', 'other'
+  'rent', 'disposal', 'taxes', 'meals', 'other',
+  // Job costs (normally linked to a project / worker)
+  'worker_pay', 'crew_meals'
 ];
 
 // --- Sub-Schemas ---
@@ -73,9 +75,18 @@ const expenseSchema = new Schema({
     maxlength: [500, 'Description cannot exceed 500 characters.']
   },
   
+  // Job costing: an expense WITH a project is a job cost,
+  // an expense WITHOUT one is company overhead.
   projectId: {
     type: Schema.Types.ObjectId,
     ref: 'Project',
+    default: null
+  },
+
+  // Who was paid (category 'worker_pay')
+  workerId: {
+    type: Schema.Types.ObjectId,
+    ref: 'Worker',
     default: null
   },
   
@@ -141,6 +152,7 @@ expenseSchema.index({ userId: 1, date: -1 });
 expenseSchema.index({ userId: 1, category: 1 });
 expenseSchema.index({ userId: 1, createdAt: -1 });
 expenseSchema.index({ userId: 1, projectId: 1 });
+expenseSchema.index({ userId: 1, workerId: 1 });
 
 // --- Instance Methods ---
 
@@ -313,7 +325,9 @@ expenseSchema.virtual('categoryName').get(function() {
     disposal: 'Waste Disposal',
     taxes: 'Taxes / Fees',
     meals: 'Meals / Entertainment',
-    other: 'Other'
+    other: 'Other',
+    worker_pay: 'Worker Pay',
+    crew_meals: 'Crew Meals'
   };
   return categoryMap[this.category] || this.category;
 });
