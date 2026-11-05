@@ -141,17 +141,17 @@ const paymentSchema = new Schema(
     date: { type: Date, required: true },
     amount: { type: Number, required: true, min: 0 },
     // ─── CRITICAL: 'type' is the field the frontend uses ──────────────
-    // Must match exactly: "Deposit", "Installment", "Refund", "Other"
+    // Must match exactly: "Deposit", "Installment", "Extra", "Refund", "Other"
     type: {
       type: String,
-      enum: ['Deposit', 'Installment', 'Refund', 'Other'],
+      enum: ['Deposit', 'Installment', 'Extra', 'Refund', 'Other'],
       required: true,
       default: 'Installment',
     },
     // Backward compatibility field
     paymentType: {
       type: String,
-      enum: ['Deposit', 'Installment', 'Refund', 'Other'],
+      enum: ['Deposit', 'Installment', 'Extra', 'Refund', 'Other'],
       default: 'Installment',
     },
     method: {

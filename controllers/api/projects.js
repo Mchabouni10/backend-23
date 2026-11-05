@@ -316,7 +316,7 @@ function sanitizeSettings(raw) {
     'Credit Card': 'Credit',
     'Debit Card': 'Debit',
   };
-  const VALID_PAYMENT_TYPES = new Set(['Deposit', 'Installment', 'Refund', 'Other']);
+  const VALID_PAYMENT_TYPES = new Set(['Deposit', 'Installment', 'Extra', 'Refund', 'Other']);
   const VALID_STATUSES = new Set(['Pending', 'Paid', 'Overdue']);
 
   const payments = Array.isArray(s.payments)
